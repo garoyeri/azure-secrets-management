@@ -35,7 +35,7 @@ inputs:
   secret-value-2:
     description: 'When using manual operations, the second secret value to use: usually the PFX password for `manual-certificate`.'
     required: false
-    default: ''  
+    default: ''
 
 # Define your outputs here.
 outputs:

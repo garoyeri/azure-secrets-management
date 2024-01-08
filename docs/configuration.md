@@ -154,7 +154,30 @@ steps:
       what-if: true
 ```
 
-### Scanning Resources for Potential Configurations
+### Generate Configuration by Scanning Resources
+
+The secrets management tool knows which resources are supported and can scan a resource group for potentially supported resources as well. You'll need at least a minimal configuration file with a default resource group defined. The scan process will poke at the default resource group and any other configured resource groups to see what resources are available, and output a default configuration in the run output that you can copy / paste into your configuration file.
+
+Configuration File:
+
+```json
+{
+    "defaults": {
+        "resourceGroup": "resourceGroup1"
+    }
+}
+```
+
+```yaml
+steps:
+  # ...
+  - uses: garoyeri/azure-secrets-management@v1
+    with:
+      configuration: ./environments/whatever/secrets.json
+      operation: generate-configuration
+```
+
+Make any desired adjustments and run the initialization operation when you're ready to use them.
 
 ### Configuration Reference
 
