@@ -9,15 +9,30 @@ branding:
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
+  configuration:
+    description: 'Path to the configuration file for secrets management'
     required: true
-    default: '1000'
+  operation:
+    description: 'Operation to perform: initialize, generate-configuration, rotate (default), manual-certificate, manual-secret'
+    required: false
+    default: 'rotate'
+  force:
+    description: 'Whether or not to force the requested operation (default `false`)'
+    required: false
+    default: 'false'
+  what-if:
+    description: 'Whether or not to just print what we would do instead of doing it (default `false`)'
+    required: false
+    default: 'false'
+  resources:
+    description: 'Comma-separated list of the resources in the configuration file to limit this operation to. Use `*` to indicate all resources (the default).'
+    required: false
+    default: '*'
 
 # Define your outputs here.
 outputs:
-  time:
-    description: 'Your output description here'
+  rotated-resources:
+    description: 'The list of resources that were rotated (or would have been rotated in the case of `what-if: true`) in the operation'
 
 runs:
   using: node20
