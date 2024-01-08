@@ -13,3 +13,5 @@ For the secrets management action, the master credentials are stored in a Key Va
     "password": "" // password for the admin credential
 }
 ```
+
+The user name of the "admin" credential can be fetched from the Azure PostgreSQL Flexible Server resource, so we don't need to configure it as part of the json file.
