@@ -1,21 +1,22 @@
 {
-  "name": "typescript-action",
-  "description": "GitHub Actions TypeScript template",
+  "name": "@garoyeri/azure-secrets-management-action",
+  "description": "Azure secrets management GitHub Action",
   "version": "0.0.0",
-  "author": "",
+  "author": "garoyeri",
   "private": true,
-  "homepage": "https://github.com/actions/typescript-action",
+  "homepage": "https://github.com/garoyeri/azure-secrets-management",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/garoyeri/azure-secrets-management"
   },
   "bugs": {
-    "url": "https://github.com/actions/typescript-action/issues"
+    "url": "https://github.com/garoyeri/azure-secrets-management/issues"
   },
   "keywords": [
     "actions",
-    "node",
-    "setup"
+    "azure",
+    "secrets",
+    "keyvault"
   ],
   "exports": {
     ".": "./dist/index.js"
