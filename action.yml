@@ -25,9 +25,17 @@ inputs:
     required: false
     default: 'false'
   resources:
-    description: 'Comma-separated list of the resources in the configuration file to limit this operation to. Use `*` to indicate all resources (the default).'
+    description: 'Comma-separated list of the resources in the configuration file to limit this operation to. Use `*` to indicate all resources (the default). Use `''''`` to indicate no resources.'
     required: false
     default: '*'
+  secret-value-1:
+    description: 'When using manual operations, the secret value to use as a new secret.'
+    required: false
+    default: ''
+  secret-value-2:
+    description: 'When using manual operations, the second secret value to use: usually the PFX password for `manual-certificate`.'
+    required: false
+    default: ''  
 
 # Define your outputs here.
 outputs:

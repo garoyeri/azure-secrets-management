@@ -15,7 +15,7 @@ This action aims to be very limited and focused in its role, to provide a headle
 
 These are the types of rotations that are supported:
 
-* SSL Certificates (TODO: splt this into its own action)
+* SSL Certificates
   * Manual Rotation
     * These are a special case because they use the GitHub secrets to store the certificate content. They can't be automated all together, but separately only.
 * Storage Accounts
@@ -35,7 +35,7 @@ These are the types of rotations that are supported:
 * SQL Azure (TBD)
   * Admin Credentials
   * Application Credentials
-* GitHub Tokens (TODO: split this into its own action)
+* GitHub Tokens
   * Manual Rotation
     * This one is trickier as a human is required to create the tokens, and having a token doesn't grant permission to create new tokens. When a token is ready to rotate, it must be done manually as well (like SSL certificates).
 
@@ -53,17 +53,18 @@ These must be split into their own custom actions to make life easier for everyo
 
 The action will not look at a resource unless it's part of a configuration. As such, when the action is run, a configuration file must be passed in to tell it what resources to look and what to ignore. When a new resource is added, it must be onboarded and set to an initial secret state.
 
-Configuration file example for a storage account:
+Configuration file example:
 
 ```json
 {
     // applies this property to every resource by default
     "defaults": {
-        "resourceGroupName": "resourceGroup1",
-        "keyVaultName": "vault1",
+        "resourceGroup": "resourceGroup1",
+        "keyVaultResourceGroup": "resourceGroup1",
+        "keyVault": "vault1",
         "keyVaultSecretPrefix": "",
         "expirationDays": 90,
-        "rotationDays": 60
+        "expirationOverlapDays": 30
     },
     "resources": {
         "storage1": {
@@ -96,7 +97,7 @@ steps:
   - uses: garoyeri/azure-secrets-management@v1
     with:
       configuration: ./environments/whatever/secrets.json
-      initialize: true
+      operation: initialize
 ```
 
 To force a resource to re-initialize (this could force a rotation):
@@ -107,7 +108,7 @@ steps:
   - uses: garoyeri/azure-secrets-management@v1
     with:
       configuration: ./environments/whatever/secrets.json
-      initialize: true
+      operation: initialize
       force: true
       resources: storage1,databaseServer1
 ```
@@ -139,3 +140,36 @@ steps:
 If you run the rotation and the target secret isn't initialized yet, then the rotation will be skipped. Resources should be onboarded explicitly to ensure that the wrong resources aren't rotated prematurely.
 
 The action has an output to list which resources were rotated, if any. This allows you to setup a subsequent action to check if any synchronization is required as post-actions. For example: replicating a secret value to Kubernetes manually (so far this is only done for manually rotated things like GitHub tokens and SSL certificates).
+
+### Testing Things Out
+
+You can use the `what-if` flag to just do a practice run of the rotation.
+
+```yaml
+steps:
+  # ...
+  - uses: garoyeri/azure-secrets-management@v1
+    with:
+      configuration: ./environments/whatever/secrets.json
+      what-if: true
+```
+
+### Scanning Resources for Potential Configurations
+
+### Configuration Reference
+
+* `defaults`: these key value pairs will be applied by default to all resources in the configuration.
+* `resources`: these are the resources that should be configured to be rotated.
+
+For each `resource`, there is a name identifier which is used by the action to identify resources when the `resources` filter is used to call the action. These must be unique within a configuration file.
+
+Each `resource` entry has some common properties:
+
+* `type`: How to interpret this resource entry. Different types have different configuration fields and different defaults. Review the documentation to see which types are supported. This field is case-sensitive.
+* `name`: (optional based on type) the name of the resource based on the type, this is used to find the resource in the specifed Azure resource group.
+* `resourceGroup`: (optional based on type) the name of the resource group where the resource is located.
+* `keyVault`: the name of the Key Vault to store the rotated secret into.
+* `keyVaultResourceGroup`: the name of the resource group where the Key Vault is located.
+* `keyVaultSecretPrefix`: the prefix of the secret name to use (the secret name will always be the identifier name... for now).
+* `expirationDays`: (optional based on type) how many days the secret is valid for.
+* `expirationOverlapDays`: the number of days remaining for the secret before starting the rotation process. This should be less than `expirationDays` and can be `0` meaning that it should be rotated when it expires. You will want to have some overlap between the old secret and the new one to allow services to shift over to the new secret and use the old one while they do, avoiding any unnecessary errors.
