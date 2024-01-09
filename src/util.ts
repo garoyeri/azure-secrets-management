@@ -9,7 +9,7 @@ export type Jsonable =
   | { toJSON(): Jsonable }
 
 export class ActionError extends Error {
-  public readonly context?: Jsonable
+  readonly context?: Jsonable
 
   constructor(
     message: string,

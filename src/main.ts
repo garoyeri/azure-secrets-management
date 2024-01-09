@@ -12,7 +12,7 @@ export async function run(): Promise<void> {
     const configuration = cfg.LoadConfigurationFromFile(
       core.getInput('configuration')
     )
-    const settings = <OperationSettings>{
+    const settings = {
       force: core.getBooleanInput('force'),
       whatIf: core.getBooleanInput('what-if'),
       operation: core.getInput('operation'),
@@ -20,7 +20,10 @@ export async function run(): Promise<void> {
       secretValue1: core.getInput('secret-value-1'),
       secretValue2: core.getInput('secret-value-2'),
       credential: new DefaultAzureCredential()
-    }
+    } as OperationSettings
+
+    core.info(settings.operation)
+    core.info(configuration.resources.keys.toString())
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message)

@@ -2,7 +2,7 @@ import { DefaultAzureCredential } from '@azure/identity'
 import { KeyVaultSecret, SecretClient } from '@azure/keyvault-secrets'
 
 // Keep track of clients we've created so far and reuse them
-let clients = new Map<string, SecretClient>()
+const clients = new Map<string, SecretClient>()
 
 export function GetClient(
   keyVault: string,
@@ -29,7 +29,7 @@ export async function GetSecretIfExists(
 
   let foundSecrets = 0
   for await (const found of client.listPropertiesOfSecretVersions(secretName)) {
-    foundSecrets++
+    if (found.enabled) foundSecrets++
   }
 
   if (foundSecrets > 0) {

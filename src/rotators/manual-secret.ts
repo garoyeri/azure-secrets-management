@@ -1,14 +1,13 @@
-import * as core from '@actions/core'
-import { ManagedResource } from 'src/configuration-file'
-import { OperationSettings } from 'src/operation-settings'
-import { GetSecretIfExists, UpdateSecret } from 'src/key-vault'
+import { ManagedResource } from '../configuration-file'
+import { OperationSettings } from '../operation-settings'
+import { GetSecretIfExists, UpdateSecret } from '../key-vault'
 import { RotationResult, ShouldRotate } from './shared'
-import { ActionError } from 'src/util'
+import { ActionError } from '../util'
 
 export const SupportedType = 'manual/generic'
 
 function ApplyDefaults(resource: Partial<ManagedResource>): ManagedResource {
-  return <ManagedResource>{
+  return {
     name: resource.name ?? '',
     contentType: resource.contentType ?? 'text/plain',
     decodeBase64: resource.decodeBase64 ?? false,
@@ -18,7 +17,7 @@ function ApplyDefaults(resource: Partial<ManagedResource>): ManagedResource {
     keyVaultSecretPrefix: resource.keyVaultSecretPrefix ?? '',
     resourceGroup: resource.resourceGroup ?? '',
     type: resource.type ?? ''
-  }
+  } as ManagedResource
 }
 
 export async function RotateManualSecret(
@@ -79,7 +78,10 @@ export async function RotateManualSecret(
       scrubbedResource.contentType
     )
 
-    return new RotationResult(scrubbedResource.name, true)
+    return new RotationResult(scrubbedResource.name, true, '', {
+      id: result.properties.id,
+      expiration: result.properties.expiresOn
+    })
   } catch (error) {
     if (error instanceof Error) {
       throw new ActionError(error.message, {

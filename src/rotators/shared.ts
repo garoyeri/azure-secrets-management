@@ -1,4 +1,4 @@
-import { Jsonable } from 'src/util'
+import { Jsonable } from '../util'
 
 export function ShouldRotate(
   secretExpiration?: Date,
@@ -19,15 +19,15 @@ export function ShouldRotate(
 }
 
 export class RotationResult {
-  public readonly name: string
-  public readonly rotated: boolean
-  public readonly notes: string
-  public readonly context: Jsonable
+  readonly name: string
+  readonly rotated: boolean
+  readonly notes: string
+  readonly context: Jsonable
 
   constructor(
     name: string,
     rotated: boolean,
-    notes: string = '',
+    notes = '',
     context: Jsonable = {}
   ) {
     this.name = name
