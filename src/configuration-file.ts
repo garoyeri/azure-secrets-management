@@ -5,7 +5,6 @@ export type ManagedResource = {
   name: string
   resourceGroup: string
   keyVault: string
-  keyVaultResourceGroup: string
   keyVaultSecretPrefix: string
   expirationDays: number
   expirationOverlapDays: number
