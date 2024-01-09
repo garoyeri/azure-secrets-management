@@ -46,7 +46,7 @@ export async function UpdateSecret(
   value: string,
   expiration?: Date,
   contentType?: string
-): KeyVaultSecret {
+): Promise<KeyVaultSecret> {
   const client = GetClient(keyVault, credential)
 
   const result = await client.setSecret(secretName, value, {
