@@ -4,6 +4,13 @@ import { KeyVaultSecret, SecretClient } from '@azure/keyvault-secrets'
 // Keep track of clients we've created so far and reuse them
 const clients = new Map<string, SecretClient>()
 
+/**
+ * Gets a cached client or constructs and caches a new one for a Key Vault.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @returns The key vault client for secrets
+ */
 export function GetClient(
   keyVault: string,
   credential: DefaultAzureCredential
@@ -20,6 +27,14 @@ export function GetClient(
   return newClient
 }
 
+/**
+ * Gets the value of a secret if it exists.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @param secretName - Name of the secret to get
+ * @returns The secret if it exists, otherwise `undefined`
+ */
 export async function GetSecretIfExists(
   keyVault: string,
   credential: DefaultAzureCredential,
@@ -39,6 +54,17 @@ export async function GetSecretIfExists(
   return undefined
 }
 
+/**
+ * Update the value of a secret.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @param secretName - Name of the secret to get
+ * @param value - Value of the secret to set
+ * @param expiration - Expiration of the secret
+ * @param contentType - Content type of the secret (default text/plain)
+ * @returns The updated secret details
+ */
 export async function UpdateSecret(
   keyVault: string,
   credential: DefaultAzureCredential,
