@@ -1,5 +1,7 @@
-import * as core from '@actions/core';
-import * as cfg from './configuration-file';
+import * as core from '@actions/core'
+import * as cfg from './configuration-file'
+import { DefaultAzureCredential } from '@azure/identity'
+import { OperationSettings } from './operation-settings'
 
 /**
  * The main function for the action.
@@ -7,16 +9,18 @@ import * as cfg from './configuration-file';
  */
 export async function run(): Promise<void> {
   try {
-    const configuration = cfg.LoadConfigurationFromFile(core.getInput('configuration'));
-    const force = core.getBooleanInput('force');
-    const whatIf = core.getBooleanInput('what-if');
-    const operation = core.getInput('operation');
-    const resourcesFilter = core.getInput('resources');
-    const secretValue1 = core.getInput('secret-value-1');
-    const secretValue2 = core.getInput('secret-value-2');
-
-    
-
+    const configuration = cfg.LoadConfigurationFromFile(
+      core.getInput('configuration')
+    )
+    const settings = <OperationSettings>{
+      force: core.getBooleanInput('force'),
+      whatIf: core.getBooleanInput('what-if'),
+      operation: core.getInput('operation'),
+      resourcesFilter: core.getInput('resources'),
+      secretValue1: core.getInput('secret-value-1'),
+      secretValue2: core.getInput('secret-value-2'),
+      credential: new DefaultAzureCredential()
+    }
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message)
