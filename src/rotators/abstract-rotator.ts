@@ -1,14 +1,16 @@
 import { OperationSettings } from '../operation-settings'
 import { ManagedResource } from '../configuration-file'
 import { RotationResult, ShouldRotate } from './shared'
-import { GetSecretIfExists } from '../key-vault'
+import { GetCertificateIfExists, GetSecretIfExists } from '../key-vault'
 
 export abstract class Rotator {
   readonly type: string
+  readonly secretType: 'secret' | 'certificate'
   readonly settings: OperationSettings
 
-  constructor(type: string, settings: OperationSettings) {
+  constructor(type: string, secretType: 'secret' | 'certificate', settings: OperationSettings) {
     this.type = type
+    this.secretType = secretType
     this.settings = settings
   }
 
@@ -31,39 +33,77 @@ export abstract class Rotator {
 
     const secretName =
       scrubbedResource.keyVaultSecretPrefix + scrubbedResource.name
-    const secretFound = await GetSecretIfExists(
-      scrubbedResource.keyVault,
-      this.settings.credential,
-      secretName
-    )
 
-    if (!secretFound) {
-      // don't rotate, secret wasn't initialized yet
-      return new RotationResult(
-        scrubbedResource.name,
-        false,
-        'Secret was not yet initialized',
-        { secretName }
+    if (this.secretType === 'secret') {
+      const secretFound = await GetSecretIfExists(
+        scrubbedResource.keyVault,
+        this.settings.credential,
+        secretName
       )
-    }
 
-    if (
-      !this.settings.force &&
-      !ShouldRotate(
-        secretFound.properties.expiresOn,
-        scrubbedResource.expirationOverlapDays
+      if (!secretFound) {
+        // don't rotate, secret wasn't initialized yet
+        return new RotationResult(
+          scrubbedResource.name,
+          false,
+          'Secret was not yet initialized',
+          { secretName }
+        )
+      }
+
+      if (
+        !this.settings.force &&
+        !ShouldRotate(
+          secretFound.properties.expiresOn,
+          scrubbedResource.expirationOverlapDays
+        )
+      ) {
+        // not time to rotate yet, and not forced
+        return new RotationResult(
+          scrubbedResource.name,
+          false,
+          'Not time to rotate yet',
+          {
+            expiration: secretFound.properties.expiresOn,
+            expirationOverlapDays: scrubbedResource.expirationOverlapDays
+          }
+        )
+      }
+    } else if (this.secretType === 'certificate') {
+      const certificateFound = await GetCertificateIfExists(
+        scrubbedResource.keyVault,
+        this.settings.credential,
+        secretName
       )
-    ) {
-      // not time to rotate yet, and not forced
-      return new RotationResult(
-        scrubbedResource.name,
-        false,
-        'Not time to rotate yet',
-        {
-          expiration: secretFound.properties.expiresOn,
-          expirationOverlapDays: scrubbedResource.expirationOverlapDays
-        }
-      )
+
+      if (!certificateFound) {
+        // don't rotate, secret wasn't initialized yet
+        return new RotationResult(
+          scrubbedResource.name,
+          false,
+          'Secret was not yet initialized',
+          { secretName }
+        )
+      }
+
+      if (
+        !this.settings.force &&
+        !ShouldRotate(
+          certificateFound.properties.expiresOn,
+          scrubbedResource.expirationOverlapDays
+        )
+      ) {
+        // not time to rotate yet, and not forced
+        return new RotationResult(
+          scrubbedResource.name,
+          false,
+          'Not time to rotate yet',
+          {
+            expiration: certificateFound.properties.expiresOn,
+            expirationOverlapDays: scrubbedResource.expirationOverlapDays
+          }
+        )
+      }
     }
 
     // all good, lets rotate!

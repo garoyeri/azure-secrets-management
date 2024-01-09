@@ -4,11 +4,9 @@ import { UpdateSecret } from '../key-vault'
 import { RotationResult } from './shared'
 import { Rotator } from './abstract-rotator'
 
-const SupportedType = 'manual/generic'
-
 export class ManualSecretRotator extends Rotator {
   constructor(settings: OperationSettings) {
-    super(SupportedType, settings)
+    super('manual/generic', 'secret', settings)
   }
 
   async PerformRotation(resource: ManagedResource, secretName: string): Promise<RotationResult> {
