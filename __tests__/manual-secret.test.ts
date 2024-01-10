@@ -4,6 +4,7 @@ import { GetSecretIfExists, UpdateSecret } from '../src/key-vault'
 import { OperationSettings } from '../src/operation-settings'
 import { DefaultAzureCredential } from '@azure/identity'
 import { KeyVaultSecret } from '@azure/keyvault-secrets'
+import { AddDays } from '../src/util'
 
 jest.mock('../src/key-vault')
 const mockGetSecretIfExists = jest.mocked(GetSecretIfExists)
@@ -70,7 +71,6 @@ describe('manual-secret.ts', () => {
     }
 
     // Set the current time to a day where the secret is not yet ready to rotate
-    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023,1,2).valueOf())
     mockGetSecretIfExists.mockReturnValue(Promise.resolve(<KeyVaultSecret>{
       name: 'myResourceConfig',
       properties: {
@@ -80,11 +80,65 @@ describe('manual-secret.ts', () => {
       },
       value: '123456'
     }))
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023,1,2).valueOf())
 
     const rotationResult = await manual.Rotate('myResourceConfig', manual.ApplyDefaults(resource))
 
     expect(rotationResult.rotated).toBeFalsy()
     expect(rotationResult.name).toBe('myResourceConfig')
     expect(rotationResult.notes).toBe('Not time to rotate yet')
+  })
+
+  it('performs rotation when the appropriate', async () => {
+    const settings = <OperationSettings>{
+      credential: new DefaultAzureCredential(),
+      force: false,
+      operation: '',
+      resourcesFilter: '*',
+      secretValue1: 'abcdefgh',
+      whatIf: false
+    }
+    const manual = new ManualSecretRotator(settings)
+    const resource = <Partial<ManagedResource>>{
+      name: 'myResource',
+      type: 'manual/secret',
+      expirationDays: 30,
+      expirationOverlapDays: 15,
+      keyVault: 'myVault'
+    }
+
+    // Set the current time to a day where the secret is not yet ready to rotate
+    mockGetSecretIfExists.mockReturnValue(Promise.resolve(<KeyVaultSecret>{
+      name: 'myResourceConfig',
+      properties: {
+        contentType: 'text/plain',
+        createdOn: new Date(2023,1,1),
+        expiresOn: new Date(2023,2,1)
+      },
+      value: '123456'
+    }))
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023,1,17).valueOf())
+    mockUpdateSecret.mockReturnValue(Promise.resolve(<KeyVaultSecret>{
+      name: 'myResourceConfig',
+      properties: {
+        contentType: 'text/plain',
+        createdOn: new Date(2023,1,17),
+        expiresOn: AddDays(new Date(2023,1,17), 30)
+      },
+      value: 'abcdefgh'
+    }))
+
+    const rotationResult = await manual.Rotate('myResourceConfig', manual.ApplyDefaults(resource))
+
+    expect(rotationResult.rotated).toBeTruthy()
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(mockUpdateSecret).toHaveBeenCalledTimes(1)
+    expect(mockUpdateSecret).toHaveBeenCalledWith(resource.keyVault,
+      settings.credential,
+      'myResourceConfig',
+      'abcdefgh',
+      AddDays(new Date(2023,1,17), 30),
+      'text/plain'
+    )
   })
 })

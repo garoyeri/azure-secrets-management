@@ -1,3 +1,8 @@
+
+export function AddDays(start: Date, days: number): Date {
+  return new Date(start.valueOf() + days * 24 * 60 * 60 * 1000)
+}
+
 /*
   Jsonable and ActionError inspired by article here:
   https://medium.com/with-orus/the-5-commandments-of-clean-error-handling-in-typescript-93a9cbdf1af5
