@@ -20,7 +20,8 @@ export class ManualCertificateRotator extends Rotator {
         resource.keyVault,
         this.settings.credential,
         secretName,
-        pfxBuffer.valueOf()
+        pfxBuffer.valueOf(),
+        this.settings.secretValue2
       )
   
       return new RotationResult(resource.name, true, '', {
