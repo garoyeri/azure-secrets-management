@@ -35,11 +35,13 @@ export abstract class Rotator {
     }
   }
 
-  public async Rotate(configurationId: string, resource: ManagedResource): Promise<RotationResult> {
+  public async Rotate(
+    configurationId: string,
+    resource: ManagedResource
+  ): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
 
-    const secretName =
-      scrubbedResource.keyVaultSecretPrefix + configurationId
+    const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
 
     if (this.secretType === 'secret') {
       const secretFound = await GetSecretIfExists(
@@ -115,7 +117,11 @@ export abstract class Rotator {
 
     // all good, lets rotate!
     try {
-      const result = await this.PerformRotation(configurationId, scrubbedResource, secretName)
+      const result = await this.PerformRotation(
+        configurationId,
+        scrubbedResource,
+        secretName
+      )
       return result
     } catch (error) {
       if (error instanceof Error) {

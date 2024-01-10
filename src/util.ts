@@ -1,4 +1,3 @@
-
 export function AddDays(start: Date, days: number): Date {
   return new Date(start.valueOf() + days * 24 * 60 * 60 * 1000)
 }
