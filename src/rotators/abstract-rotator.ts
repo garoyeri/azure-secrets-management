@@ -3,12 +3,14 @@ import { ManagedResource } from '../configuration-file'
 import { RotationResult, ShouldRotate } from './shared'
 import { GetCertificateIfExists, GetSecretIfExists } from '../key-vault'
 
+type SecretType = 'secret' | 'certificate'
+
 export abstract class Rotator {
   readonly type: string
-  readonly secretType: 'secret' | 'certificate'
+  readonly secretType: SecretType
   readonly settings: OperationSettings
 
-  constructor(type: string, secretType: 'secret' | 'certificate', settings: OperationSettings) {
+  constructor(type: string, secretType: SecretType, settings: OperationSettings) {
     this.type = type
     this.secretType = secretType
     this.settings = settings
