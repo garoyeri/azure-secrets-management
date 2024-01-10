@@ -13,20 +13,21 @@ export class ManualCertificateRotator extends Rotator {
     resource: ManagedResource,
     secretName: string
   ): Promise<RotationResult> {
-    const pfxBuffer = resource.decodeBase64 ? Buffer.from(this.settings.secretValue1, 'base64')
-        : Buffer.from(this.settings.secretValue1)
+    const pfxBuffer = resource.decodeBase64
+      ? Buffer.from(this.settings.secretValue1, 'base64')
+      : Buffer.from(this.settings.secretValue1)
 
     const result = await ImportCertificate(
-        resource.keyVault,
-        this.settings.credential,
-        secretName,
-        pfxBuffer.valueOf(),
-        this.settings.secretValue2
-      )
-  
-      return new RotationResult(resource.name, true, '', {
-        id: result.properties.id,
-        expiration: result.properties.expiresOn
-      })  
+      resource.keyVault,
+      this.settings.credential,
+      secretName,
+      pfxBuffer.valueOf(),
+      this.settings.secretValue2
+    )
+
+    return new RotationResult(resource.name, true, '', {
+      id: result.properties.id,
+      expiration: result.properties.expiresOn
+    })
   }
 }

@@ -16,8 +16,9 @@ export class ManualSecretRotator extends Rotator {
     const newExpiration = resource.expirationDays
       ? new Date(Date.now() + resource.expirationDays * 24 * 60 * 60 * 1000)
       : undefined
-    
-    const value = resource.decodeBase64 ? Buffer.from(this.settings.secretValue1, 'base64')
+
+    const value = resource.decodeBase64
+      ? Buffer.from(this.settings.secretValue1, 'base64')
       : Buffer.from(this.settings.secretValue1)
 
     const result = await UpdateSecret(
