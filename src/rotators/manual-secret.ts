@@ -9,11 +9,12 @@ export class ManualSecretRotator extends Rotator {
     super('manual/generic', 'secret', settings)
   }
 
-  async PerformRotation(resource: ManagedResource, secretName: string): Promise<RotationResult> {
+  async PerformRotation(
+    resource: ManagedResource,
+    secretName: string
+  ): Promise<RotationResult> {
     const newExpiration = resource.expirationDays
-      ? new Date(
-          Date.now() + resource.expirationDays * 24 * 60 * 60 * 1000
-        )
+      ? new Date(Date.now() + resource.expirationDays * 24 * 60 * 60 * 1000)
       : undefined
     const result = await UpdateSecret(
       resource.keyVault,
@@ -27,6 +28,6 @@ export class ManualSecretRotator extends Rotator {
     return new RotationResult(resource.name, true, '', {
       id: result.properties.id,
       expiration: result.properties.expiresOn
-    })    
+    })
   }
 }

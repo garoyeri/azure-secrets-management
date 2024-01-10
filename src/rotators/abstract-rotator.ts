@@ -10,7 +10,11 @@ export abstract class Rotator {
   readonly secretType: SecretType
   readonly settings: OperationSettings
 
-  constructor(type: string, secretType: SecretType, settings: OperationSettings) {
+  constructor(
+    type: string,
+    secretType: SecretType,
+    settings: OperationSettings
+  ) {
     this.type = type
     this.secretType = secretType
     this.settings = settings
@@ -114,12 +118,19 @@ export abstract class Rotator {
       return result
     } catch (error) {
       if (error instanceof Error) {
-        return new RotationResult(scrubbedResource.name, false, error.message, { error: JSON.stringify(error) })
+        return new RotationResult(scrubbedResource.name, false, error.message, {
+          error: JSON.stringify(error)
+        })
       } else {
-        return new RotationResult(scrubbedResource.name, false, '', { error: JSON.stringify(error) })
+        return new RotationResult(scrubbedResource.name, false, '', {
+          error: JSON.stringify(error)
+        })
       }
     }
   }
 
-  abstract PerformRotation(resource: ManagedResource, secretName: string): Promise<RotationResult>
+  abstract PerformRotation(
+    resource: ManagedResource,
+    secretName: string
+  ): Promise<RotationResult>
 }
