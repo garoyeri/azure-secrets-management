@@ -1,9 +1,9 @@
 import { DefaultAzureCredential } from '@azure/identity'
-import {
-  CertificateClient,
-  KeyVaultCertificateWithPolicy
-} from '@azure/keyvault-certificates'
-import { KeyVaultSecret, SecretClient } from '@azure/keyvault-secrets'
+import { CertificateClient } from '@azure/keyvault-certificates'
+import { SecretClient } from '@azure/keyvault-secrets'
+
+import type { KeyVaultCertificateWithPolicy } from '@azure/keyvault-certificates'
+import type { KeyVaultSecret } from '@azure/keyvault-secrets'
 
 // Keep track of clients we've created so far and reuse them
 const secretClients = new Map<string, SecretClient>()
@@ -154,12 +154,12 @@ export async function ImportCertificate(
   credential: DefaultAzureCredential,
   name: string,
   value: Uint8Array,
-  password: string = ''
+  password = ''
 ): Promise<KeyVaultCertificateWithPolicy> {
   const client = GetCertificateClient(keyVault, credential)
 
   const result = await client.importCertificate(name, value, {
-    password: password,
+    password,
     policy: {
       exportable: true,
       contentType: 'application/x-pkcs12'

@@ -20,8 +20,8 @@ export abstract class Rotator {
     this.settings = settings
   }
 
-  public ApplyDefaults(resource: Partial<ManagedResource>): ManagedResource {
-    return <ManagedResource>{
+  ApplyDefaults(resource: Partial<ManagedResource>): ManagedResource {
+    return {
       name: resource.name ?? '',
       contentType: resource.contentType ?? 'text/plain',
       // by default, certificates are base64 encoded and should be decoded. Secrets may not be.
@@ -32,10 +32,10 @@ export abstract class Rotator {
       keyVaultSecretPrefix: resource.keyVaultSecretPrefix ?? '',
       resourceGroup: resource.resourceGroup ?? '',
       type: resource.type ?? ''
-    }
+    } as ManagedResource
   }
 
-  public async Rotate(
+  async Rotate(
     configurationId: string,
     resource: ManagedResource
   ): Promise<RotationResult> {

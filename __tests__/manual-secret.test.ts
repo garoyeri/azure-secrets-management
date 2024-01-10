@@ -3,8 +3,9 @@ import { ManualSecretRotator } from '../src/rotators/manual-secret'
 import { GetSecretIfExists, UpdateSecret } from '../src/key-vault'
 import { OperationSettings } from '../src/operation-settings'
 import { DefaultAzureCredential } from '@azure/identity'
-import { KeyVaultSecret } from '@azure/keyvault-secrets'
 import { AddDays } from '../src/util'
+
+import type { KeyVaultSecret } from '@azure/keyvault-secrets'
 
 jest.mock('../src/key-vault')
 const mockGetSecretIfExists = jest.mocked(GetSecretIfExists)
@@ -25,22 +26,22 @@ afterEach(() => {
 
 describe('manual-secret.ts', () => {
   it('does not rotate when secret is uninitialized', async () => {
-    const settings = <OperationSettings>{
+    const settings = {
       credential: new DefaultAzureCredential(),
       force: false,
       operation: '',
       resourcesFilter: '*',
       secretValue1: 'abcdefgh',
       whatIf: false
-    }
+    } as OperationSettings
     const manual = new ManualSecretRotator(settings)
-    const resource = <Partial<ManagedResource>>{
+    const resource = {
       name: 'myResource',
       type: 'manual/secret',
       expirationDays: 30,
       expirationOverlapDays: 15,
       keyVault: 'myVault'
-    }
+    } as Partial<ManagedResource>
 
     // when trying to get the secret, return undefined indicating it wasn't found
     mockGetSecretIfExists.mockReturnValue(Promise.resolve(undefined))
@@ -56,26 +57,26 @@ describe('manual-secret.ts', () => {
   })
 
   it('does not rotate when not within the right number of days', async () => {
-    const settings = <OperationSettings>{
+    const settings = {
       credential: new DefaultAzureCredential(),
       force: false,
       operation: '',
       resourcesFilter: '*',
       secretValue1: 'abcdefgh',
       whatIf: false
-    }
+    } as OperationSettings
     const manual = new ManualSecretRotator(settings)
-    const resource = <Partial<ManagedResource>>{
+    const resource = {
       name: 'myResource',
       type: 'manual/secret',
       expirationDays: 30,
       expirationOverlapDays: 15,
       keyVault: 'myVault'
-    }
+    } as Partial<ManagedResource>
 
     // Set the current time to a day where the secret is not yet ready to rotate
     mockGetSecretIfExists.mockReturnValue(
-      Promise.resolve(<KeyVaultSecret>{
+      Promise.resolve({
         name: 'myResourceConfig',
         properties: {
           contentType: 'text/plain',
@@ -83,7 +84,7 @@ describe('manual-secret.ts', () => {
           expiresOn: new Date(2023, 2, 1)
         },
         value: '123456'
-      })
+      } as KeyVaultSecret)
     )
     jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 1, 2).valueOf())
 
@@ -98,26 +99,26 @@ describe('manual-secret.ts', () => {
   })
 
   it('performs rotation when the appropriate', async () => {
-    const settings = <OperationSettings>{
+    const settings = {
       credential: new DefaultAzureCredential(),
       force: false,
       operation: '',
       resourcesFilter: '*',
       secretValue1: 'abcdefgh',
       whatIf: false
-    }
+    } as OperationSettings
     const manual = new ManualSecretRotator(settings)
-    const resource = <Partial<ManagedResource>>{
+    const resource = {
       name: 'myResource',
       type: 'manual/secret',
       expirationDays: 30,
       expirationOverlapDays: 15,
       keyVault: 'myVault'
-    }
+    } as Partial<ManagedResource>
 
     // Set the current time to a day where the secret is not yet ready to rotate
     mockGetSecretIfExists.mockReturnValue(
-      Promise.resolve(<KeyVaultSecret>{
+      Promise.resolve({
         name: 'myResourceConfig',
         properties: {
           contentType: 'text/plain',
@@ -125,11 +126,11 @@ describe('manual-secret.ts', () => {
           expiresOn: new Date(2023, 2, 1)
         },
         value: '123456'
-      })
+      } as KeyVaultSecret)
     )
     jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 1, 17).valueOf())
     mockUpdateSecret.mockReturnValue(
-      Promise.resolve(<KeyVaultSecret>{
+      Promise.resolve({
         name: 'myResourceConfig',
         properties: {
           contentType: 'text/plain',
@@ -137,7 +138,7 @@ describe('manual-secret.ts', () => {
           expiresOn: AddDays(new Date(2023, 1, 17), 30)
         },
         value: 'abcdefgh'
-      })
+      } as KeyVaultSecret)
     )
 
     const rotationResult = await manual.Rotate(

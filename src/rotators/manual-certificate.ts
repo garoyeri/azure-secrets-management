@@ -1,8 +1,8 @@
-import { ManagedResource } from 'src/configuration-file'
+import { ManagedResource } from '../configuration-file'
 import { Rotator } from './abstract-rotator'
 import { RotationResult } from './shared'
-import { OperationSettings } from 'src/operation-settings'
-import { ImportCertificate } from 'src/key-vault'
+import { OperationSettings } from '../operation-settings'
+import { ImportCertificate } from '../key-vault'
 
 export class ManualCertificateRotator extends Rotator {
   constructor(settings: OperationSettings) {
@@ -26,7 +26,7 @@ export class ManualCertificateRotator extends Rotator {
       this.settings.secretValue2
     )
 
-    return new RotationResult(resource.name, true, '', {
+    return new RotationResult(configurationId, true, '', {
       id: result.properties.id,
       expiration: result.properties.expiresOn
     })
