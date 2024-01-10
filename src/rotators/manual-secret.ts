@@ -10,6 +10,7 @@ export class ManualSecretRotator extends Rotator {
   }
 
   async PerformRotation(
+    configurationId: string,
     resource: ManagedResource,
     secretName: string
   ): Promise<RotationResult> {
@@ -30,7 +31,7 @@ export class ManualSecretRotator extends Rotator {
       resource.contentType
     )
 
-    return new RotationResult(resource.name, true, '', {
+    return new RotationResult(configurationId, true, '', {
       id: result.properties.id,
       expiration: result.properties.expiresOn
     })

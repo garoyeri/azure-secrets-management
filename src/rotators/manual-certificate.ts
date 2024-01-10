@@ -10,6 +10,7 @@ export class ManualCertificateRotator extends Rotator {
   }
 
   async PerformRotation(
+    configurationId: string,
     resource: ManagedResource,
     secretName: string
   ): Promise<RotationResult> {

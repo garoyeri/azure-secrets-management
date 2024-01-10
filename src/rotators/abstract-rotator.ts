@@ -35,11 +35,11 @@ export abstract class Rotator {
     }
   }
 
-  public async Rotate(resource: ManagedResource): Promise<RotationResult> {
+  public async Rotate(configurationId: string, resource: ManagedResource): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
 
     const secretName =
-      scrubbedResource.keyVaultSecretPrefix + scrubbedResource.name
+      scrubbedResource.keyVaultSecretPrefix + configurationId
 
     if (this.secretType === 'secret') {
       const secretFound = await GetSecretIfExists(
@@ -51,7 +51,7 @@ export abstract class Rotator {
       if (!secretFound) {
         // don't rotate, secret wasn't initialized yet
         return new RotationResult(
-          scrubbedResource.name,
+          configurationId,
           false,
           'Secret was not yet initialized',
           { secretName }
@@ -67,7 +67,7 @@ export abstract class Rotator {
       ) {
         // not time to rotate yet, and not forced
         return new RotationResult(
-          scrubbedResource.name,
+          configurationId,
           false,
           'Not time to rotate yet',
           {
@@ -86,7 +86,7 @@ export abstract class Rotator {
       if (!certificateFound) {
         // don't rotate, secret wasn't initialized yet
         return new RotationResult(
-          scrubbedResource.name,
+          configurationId,
           false,
           'Secret was not yet initialized',
           { secretName }
@@ -102,7 +102,7 @@ export abstract class Rotator {
       ) {
         // not time to rotate yet, and not forced
         return new RotationResult(
-          scrubbedResource.name,
+          configurationId,
           false,
           'Not time to rotate yet',
           {
@@ -115,15 +115,15 @@ export abstract class Rotator {
 
     // all good, lets rotate!
     try {
-      const result = await this.PerformRotation(scrubbedResource, secretName)
+      const result = await this.PerformRotation(configurationId, scrubbedResource, secretName)
       return result
     } catch (error) {
       if (error instanceof Error) {
-        return new RotationResult(scrubbedResource.name, false, error.message, {
+        return new RotationResult(configurationId, false, error.message, {
           error: JSON.stringify(error)
         })
       } else {
-        return new RotationResult(scrubbedResource.name, false, '', {
+        return new RotationResult(configurationId, false, '', {
           error: JSON.stringify(error)
         })
       }
@@ -131,6 +131,7 @@ export abstract class Rotator {
   }
 
   protected abstract PerformRotation(
+    configurationId: string,
     resource: ManagedResource,
     secretName: string
   ): Promise<RotationResult>
