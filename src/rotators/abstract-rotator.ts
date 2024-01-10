@@ -24,7 +24,8 @@ export abstract class Rotator {
     return <ManagedResource>{
       name: resource.name ?? '',
       contentType: resource.contentType ?? 'text/plain',
-      decodeBase64: resource.decodeBase64 ?? false,
+      // by default, certificates are base64 encoded and should be decoded. Secrets may not be.
+      decodeBase64: resource.decodeBase64 ?? (this.secretType === 'certificate'),
       expirationDays: resource.expirationDays,
       expirationOverlapDays: resource.expirationOverlapDays ?? 0,
       keyVault: resource.keyVault ?? '',
