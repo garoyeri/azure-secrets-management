@@ -55,7 +55,7 @@ jobs:
         id: test-action
         uses: ./
         with:
-          configuration: ./.github/ci-config.json
+          configuration: ./.github/workflows/ci-config.json
           operation: unsupported
 
       - name: Print Output
