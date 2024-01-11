@@ -1,5 +1,11 @@
+const millisecondsPerDay = 24 * 60 * 60 * 1000
+
 export function AddDays(start: Date, days: number): Date {
-  return new Date(start.valueOf() + days * 24 * 60 * 60 * 1000)
+  return new Date(start.valueOf() + days * millisecondsPerDay)
+}
+
+export function DiffDays(from: Date, to: Date): number {
+  return (to.valueOf() - from.valueOf()) / millisecondsPerDay
 }
 
 /*
