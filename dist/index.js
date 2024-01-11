@@ -4219,6 +4219,1516 @@ exports.serializationPolicyName = serializationPolicyName;
 
 /***/ }),
 
+/***/ 6232:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var coreRestPipeline = __nccwpck_require__(8121);
+var coreClient = __nccwpck_require__(9729);
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+const disbaleKeepAlivePolicyName = "DisableKeepAlivePolicy";
+function createDisableKeepAlivePolicy() {
+    return {
+        name: disbaleKeepAlivePolicyName,
+        async sendRequest(request, next) {
+            request.disableKeepAlive = true;
+            return next(request);
+        },
+    };
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+function toWebResourceLike(request) {
+    return {
+        url: request.url,
+        method: request.method,
+        headers: toHttpHeaderLike(request.headers),
+        withCredentials: request.withCredentials,
+        timeout: request.timeout,
+        requestId: request.headers.get("x-ms-client-request-id") || "",
+    };
+}
+function toHttpHeaderLike(headers) {
+    return new HttpHeaders(headers.toJSON({ preserveCase: true }));
+}
+/**
+ * A collection of HttpHeaders that can be sent with a HTTP request.
+ */
+function getHeaderKey(headerName) {
+    return headerName.toLowerCase();
+}
+/**
+ * A collection of HTTP header key/value pairs.
+ */
+class HttpHeaders {
+    constructor(rawHeaders) {
+        this._headersMap = {};
+        if (rawHeaders) {
+            for (const headerName in rawHeaders) {
+                this.set(headerName, rawHeaders[headerName]);
+            }
+        }
+    }
+    /**
+     * Set a header in this collection with the provided name and value. The name is
+     * case-insensitive.
+     * @param headerName - The name of the header to set. This value is case-insensitive.
+     * @param headerValue - The value of the header to set.
+     */
+    set(headerName, headerValue) {
+        this._headersMap[getHeaderKey(headerName)] = {
+            name: headerName,
+            value: headerValue.toString(),
+        };
+    }
+    /**
+     * Get the header value for the provided header name, or undefined if no header exists in this
+     * collection with the provided name.
+     * @param headerName - The name of the header.
+     */
+    get(headerName) {
+        const header = this._headersMap[getHeaderKey(headerName)];
+        return !header ? undefined : header.value;
+    }
+    /**
+     * Get whether or not this header collection contains a header entry for the provided header name.
+     */
+    contains(headerName) {
+        return !!this._headersMap[getHeaderKey(headerName)];
+    }
+    /**
+     * Remove the header with the provided headerName. Return whether or not the header existed and
+     * was removed.
+     * @param headerName - The name of the header to remove.
+     */
+    remove(headerName) {
+        const result = this.contains(headerName);
+        delete this._headersMap[getHeaderKey(headerName)];
+        return result;
+    }
+    /**
+     * Get the headers that are contained this collection as an object.
+     */
+    rawHeaders() {
+        return this.toJson({ preserveCase: true });
+    }
+    /**
+     * Get the headers that are contained in this collection as an array.
+     */
+    headersArray() {
+        const headers = [];
+        for (const headerKey in this._headersMap) {
+            headers.push(this._headersMap[headerKey]);
+        }
+        return headers;
+    }
+    /**
+     * Get the header names that are contained in this collection.
+     */
+    headerNames() {
+        const headerNames = [];
+        const headers = this.headersArray();
+        for (let i = 0; i < headers.length; ++i) {
+            headerNames.push(headers[i].name);
+        }
+        return headerNames;
+    }
+    /**
+     * Get the header values that are contained in this collection.
+     */
+    headerValues() {
+        const headerValues = [];
+        const headers = this.headersArray();
+        for (let i = 0; i < headers.length; ++i) {
+            headerValues.push(headers[i].value);
+        }
+        return headerValues;
+    }
+    /**
+     * Get the JSON object representation of this HTTP header collection.
+     */
+    toJson(options = {}) {
+        const result = {};
+        if (options.preserveCase) {
+            for (const headerKey in this._headersMap) {
+                const header = this._headersMap[headerKey];
+                result[header.name] = header.value;
+            }
+        }
+        else {
+            for (const headerKey in this._headersMap) {
+                const header = this._headersMap[headerKey];
+                result[getHeaderKey(header.name)] = header.value;
+            }
+        }
+        return result;
+    }
+    /**
+     * Get the string representation of this HTTP header collection.
+     */
+    toString() {
+        return JSON.stringify(this.toJson({ preserveCase: true }));
+    }
+    /**
+     * Create a deep clone/copy of this HttpHeaders collection.
+     */
+    clone() {
+        const resultPreservingCasing = {};
+        for (const headerKey in this._headersMap) {
+            const header = this._headersMap[headerKey];
+            resultPreservingCasing[header.name] = header.value;
+        }
+        return new HttpHeaders(resultPreservingCasing);
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Client to provide compatability between core V1 & V2.
+ */
+class ExtendedServiceClient extends coreClient.ServiceClient {
+    constructor(options) {
+        var _a, _b;
+        super(options);
+        if (((_a = options.keepAliveOptions) === null || _a === void 0 ? void 0 : _a.enable) === false) {
+            this.pipeline.addPolicy(createDisableKeepAlivePolicy());
+        }
+        if (((_b = options.redirectOptions) === null || _b === void 0 ? void 0 : _b.handleRedirects) === false) {
+            this.pipeline.removePolicy({
+                name: coreRestPipeline.redirectPolicyName,
+            });
+        }
+    }
+    /**
+     * Compatible send operation request function.
+     *
+     * @param operationArguments - Operation arguments
+     * @param operationSpec - Operation Spec
+     * @returns
+     */
+    async sendOperationRequest(operationArguments, operationSpec) {
+        var _a;
+        const userProvidedCallBack = (_a = operationArguments === null || operationArguments === void 0 ? void 0 : operationArguments.options) === null || _a === void 0 ? void 0 : _a.onResponse;
+        let lastResponse;
+        function onResponse(rawResponse, flatResponse, error) {
+            lastResponse = rawResponse;
+            if (userProvidedCallBack) {
+                userProvidedCallBack(rawResponse, flatResponse, error);
+            }
+        }
+        operationArguments.options = Object.assign(Object.assign({}, operationArguments.options), { onResponse });
+        const result = await super.sendOperationRequest(operationArguments, operationSpec);
+        if (lastResponse) {
+            Object.defineProperty(result, "_response", {
+                value: Object.assign(Object.assign({}, lastResponse), { request: toWebResourceLike(lastResponse.request), headers: toHttpHeaderLike(lastResponse.headers) }),
+            });
+        }
+        return result;
+    }
+}
+
+exports.ExtendedServiceClient = ExtendedServiceClient;
+exports.disbaleKeepAlivePolicyName = disbaleKeepAlivePolicyName;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 7094:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var logger$1 = __nccwpck_require__(3233);
+var abortController = __nccwpck_require__(2557);
+var coreUtil = __nccwpck_require__(1333);
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * The `@azure/logger` configuration for this package.
+ * @internal
+ */
+const logger = logger$1.createClientLogger("core-lro");
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * The default time interval to wait before sending the next polling request.
+ */
+const POLL_INTERVAL_IN_MS = 2000;
+/**
+ * The closed set of terminal states.
+ */
+const terminalStates = ["succeeded", "canceled", "failed"];
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Deserializes the state
+ */
+function deserializeState(serializedState) {
+    try {
+        return JSON.parse(serializedState).state;
+    }
+    catch (e) {
+        throw new Error(`Unable to deserialize input state: ${serializedState}`);
+    }
+}
+function setStateError(inputs) {
+    const { state, stateProxy, isOperationError } = inputs;
+    return (error) => {
+        if (isOperationError(error)) {
+            stateProxy.setError(state, error);
+            stateProxy.setFailed(state);
+        }
+        throw error;
+    };
+}
+function appendReadableErrorMessage(currentMessage, innerMessage) {
+    let message = currentMessage;
+    if (message.slice(-1) !== ".") {
+        message = message + ".";
+    }
+    return message + " " + innerMessage;
+}
+function simplifyError(err) {
+    let message = err.message;
+    let code = err.code;
+    let curErr = err;
+    while (curErr.innererror) {
+        curErr = curErr.innererror;
+        code = curErr.code;
+        message = appendReadableErrorMessage(message, curErr.message);
+    }
+    return {
+        code,
+        message,
+    };
+}
+function processOperationStatus(result) {
+    const { state, stateProxy, status, isDone, processResult, getError, response, setErrorAsResult } = result;
+    switch (status) {
+        case "succeeded": {
+            stateProxy.setSucceeded(state);
+            break;
+        }
+        case "failed": {
+            const err = getError === null || getError === void 0 ? void 0 : getError(response);
+            let postfix = "";
+            if (err) {
+                const { code, message } = simplifyError(err);
+                postfix = `. ${code}. ${message}`;
+            }
+            const errStr = `The long-running operation has failed${postfix}`;
+            stateProxy.setError(state, new Error(errStr));
+            stateProxy.setFailed(state);
+            logger.warning(errStr);
+            break;
+        }
+        case "canceled": {
+            stateProxy.setCanceled(state);
+            break;
+        }
+    }
+    if ((isDone === null || isDone === void 0 ? void 0 : isDone(response, state)) ||
+        (isDone === undefined &&
+            ["succeeded", "canceled"].concat(setErrorAsResult ? [] : ["failed"]).includes(status))) {
+        stateProxy.setResult(state, buildResult({
+            response,
+            state,
+            processResult,
+        }));
+    }
+}
+function buildResult(inputs) {
+    const { processResult, response, state } = inputs;
+    return processResult ? processResult(response, state) : response;
+}
+/**
+ * Initiates the long-running operation.
+ */
+async function initOperation(inputs) {
+    const { init, stateProxy, processResult, getOperationStatus, withOperationLocation, setErrorAsResult, } = inputs;
+    const { operationLocation, resourceLocation, metadata, response } = await init();
+    if (operationLocation)
+        withOperationLocation === null || withOperationLocation === void 0 ? void 0 : withOperationLocation(operationLocation, false);
+    const config = {
+        metadata,
+        operationLocation,
+        resourceLocation,
+    };
+    logger.verbose(`LRO: Operation description:`, config);
+    const state = stateProxy.initState(config);
+    const status = getOperationStatus({ response, state, operationLocation });
+    processOperationStatus({ state, status, stateProxy, response, setErrorAsResult, processResult });
+    return state;
+}
+async function pollOperationHelper(inputs) {
+    const { poll, state, stateProxy, operationLocation, getOperationStatus, getResourceLocation, isOperationError, options, } = inputs;
+    const response = await poll(operationLocation, options).catch(setStateError({
+        state,
+        stateProxy,
+        isOperationError,
+    }));
+    const status = getOperationStatus(response, state);
+    logger.verbose(`LRO: Status:\n\tPolling from: ${state.config.operationLocation}\n\tOperation status: ${status}\n\tPolling status: ${terminalStates.includes(status) ? "Stopped" : "Running"}`);
+    if (status === "succeeded") {
+        const resourceLocation = getResourceLocation(response, state);
+        if (resourceLocation !== undefined) {
+            return {
+                response: await poll(resourceLocation).catch(setStateError({ state, stateProxy, isOperationError })),
+                status,
+            };
+        }
+    }
+    return { response, status };
+}
+/** Polls the long-running operation. */
+async function pollOperation(inputs) {
+    const { poll, state, stateProxy, options, getOperationStatus, getResourceLocation, getOperationLocation, isOperationError, withOperationLocation, getPollingInterval, processResult, getError, updateState, setDelay, isDone, setErrorAsResult, } = inputs;
+    const { operationLocation } = state.config;
+    if (operationLocation !== undefined) {
+        const { response, status } = await pollOperationHelper({
+            poll,
+            getOperationStatus,
+            state,
+            stateProxy,
+            operationLocation,
+            getResourceLocation,
+            isOperationError,
+            options,
+        });
+        processOperationStatus({
+            status,
+            response,
+            state,
+            stateProxy,
+            isDone,
+            processResult,
+            getError,
+            setErrorAsResult,
+        });
+        if (!terminalStates.includes(status)) {
+            const intervalInMs = getPollingInterval === null || getPollingInterval === void 0 ? void 0 : getPollingInterval(response);
+            if (intervalInMs)
+                setDelay(intervalInMs);
+            const location = getOperationLocation === null || getOperationLocation === void 0 ? void 0 : getOperationLocation(response, state);
+            if (location !== undefined) {
+                const isUpdated = operationLocation !== location;
+                state.config.operationLocation = location;
+                withOperationLocation === null || withOperationLocation === void 0 ? void 0 : withOperationLocation(location, isUpdated);
+            }
+            else
+                withOperationLocation === null || withOperationLocation === void 0 ? void 0 : withOperationLocation(operationLocation, false);
+        }
+        updateState === null || updateState === void 0 ? void 0 : updateState(state, response);
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+function getOperationLocationPollingUrl(inputs) {
+    const { azureAsyncOperation, operationLocation } = inputs;
+    return operationLocation !== null && operationLocation !== void 0 ? operationLocation : azureAsyncOperation;
+}
+function getLocationHeader(rawResponse) {
+    return rawResponse.headers["location"];
+}
+function getOperationLocationHeader(rawResponse) {
+    return rawResponse.headers["operation-location"];
+}
+function getAzureAsyncOperationHeader(rawResponse) {
+    return rawResponse.headers["azure-asyncoperation"];
+}
+function findResourceLocation(inputs) {
+    var _a;
+    const { location, requestMethod, requestPath, resourceLocationConfig } = inputs;
+    switch (requestMethod) {
+        case "PUT": {
+            return requestPath;
+        }
+        case "DELETE": {
+            return undefined;
+        }
+        case "PATCH": {
+            return (_a = getDefault()) !== null && _a !== void 0 ? _a : requestPath;
+        }
+        default: {
+            return getDefault();
+        }
+    }
+    function getDefault() {
+        switch (resourceLocationConfig) {
+            case "azure-async-operation": {
+                return undefined;
+            }
+            case "original-uri": {
+                return requestPath;
+            }
+            case "location":
+            default: {
+                return location;
+            }
+        }
+    }
+}
+function inferLroMode(inputs) {
+    const { rawResponse, requestMethod, requestPath, resourceLocationConfig } = inputs;
+    const operationLocation = getOperationLocationHeader(rawResponse);
+    const azureAsyncOperation = getAzureAsyncOperationHeader(rawResponse);
+    const pollingUrl = getOperationLocationPollingUrl({ operationLocation, azureAsyncOperation });
+    const location = getLocationHeader(rawResponse);
+    const normalizedRequestMethod = requestMethod === null || requestMethod === void 0 ? void 0 : requestMethod.toLocaleUpperCase();
+    if (pollingUrl !== undefined) {
+        return {
+            mode: "OperationLocation",
+            operationLocation: pollingUrl,
+            resourceLocation: findResourceLocation({
+                requestMethod: normalizedRequestMethod,
+                location,
+                requestPath,
+                resourceLocationConfig,
+            }),
+        };
+    }
+    else if (location !== undefined) {
+        return {
+            mode: "ResourceLocation",
+            operationLocation: location,
+        };
+    }
+    else if (normalizedRequestMethod === "PUT" && requestPath) {
+        return {
+            mode: "Body",
+            operationLocation: requestPath,
+        };
+    }
+    else {
+        return undefined;
+    }
+}
+function transformStatus(inputs) {
+    const { status, statusCode } = inputs;
+    if (typeof status !== "string" && status !== undefined) {
+        throw new Error(`Polling was unsuccessful. Expected status to have a string value or no value but it has instead: ${status}. This doesn't necessarily indicate the operation has failed. Check your Azure subscription or resource status for more information.`);
+    }
+    switch (status === null || status === void 0 ? void 0 : status.toLocaleLowerCase()) {
+        case undefined:
+            return toOperationStatus(statusCode);
+        case "succeeded":
+            return "succeeded";
+        case "failed":
+            return "failed";
+        case "running":
+        case "accepted":
+        case "started":
+        case "canceling":
+        case "cancelling":
+            return "running";
+        case "canceled":
+        case "cancelled":
+            return "canceled";
+        default: {
+            logger.verbose(`LRO: unrecognized operation status: ${status}`);
+            return status;
+        }
+    }
+}
+function getStatus(rawResponse) {
+    var _a;
+    const { status } = (_a = rawResponse.body) !== null && _a !== void 0 ? _a : {};
+    return transformStatus({ status, statusCode: rawResponse.statusCode });
+}
+function getProvisioningState(rawResponse) {
+    var _a, _b;
+    const { properties, provisioningState } = (_a = rawResponse.body) !== null && _a !== void 0 ? _a : {};
+    const status = (_b = properties === null || properties === void 0 ? void 0 : properties.provisioningState) !== null && _b !== void 0 ? _b : provisioningState;
+    return transformStatus({ status, statusCode: rawResponse.statusCode });
+}
+function toOperationStatus(statusCode) {
+    if (statusCode === 202) {
+        return "running";
+    }
+    else if (statusCode < 300) {
+        return "succeeded";
+    }
+    else {
+        return "failed";
+    }
+}
+function parseRetryAfter({ rawResponse }) {
+    const retryAfter = rawResponse.headers["retry-after"];
+    if (retryAfter !== undefined) {
+        // Retry-After header value is either in HTTP date format, or in seconds
+        const retryAfterInSeconds = parseInt(retryAfter);
+        return isNaN(retryAfterInSeconds)
+            ? calculatePollingIntervalFromDate(new Date(retryAfter))
+            : retryAfterInSeconds * 1000;
+    }
+    return undefined;
+}
+function getErrorFromResponse(response) {
+    const error = response.flatResponse.error;
+    if (!error) {
+        logger.warning(`The long-running operation failed but there is no error property in the response's body`);
+        return;
+    }
+    if (!error.code || !error.message) {
+        logger.warning(`The long-running operation failed but the error property in the response's body doesn't contain code or message`);
+        return;
+    }
+    return error;
+}
+function calculatePollingIntervalFromDate(retryAfterDate) {
+    const timeNow = Math.floor(new Date().getTime());
+    const retryAfterTime = retryAfterDate.getTime();
+    if (timeNow < retryAfterTime) {
+        return retryAfterTime - timeNow;
+    }
+    return undefined;
+}
+function getStatusFromInitialResponse(inputs) {
+    const { response, state, operationLocation } = inputs;
+    function helper() {
+        var _a;
+        const mode = (_a = state.config.metadata) === null || _a === void 0 ? void 0 : _a["mode"];
+        switch (mode) {
+            case undefined:
+                return toOperationStatus(response.rawResponse.statusCode);
+            case "Body":
+                return getOperationStatus(response, state);
+            default:
+                return "running";
+        }
+    }
+    const status = helper();
+    return status === "running" && operationLocation === undefined ? "succeeded" : status;
+}
+/**
+ * Initiates the long-running operation.
+ */
+async function initHttpOperation(inputs) {
+    const { stateProxy, resourceLocationConfig, processResult, lro, setErrorAsResult } = inputs;
+    return initOperation({
+        init: async () => {
+            const response = await lro.sendInitialRequest();
+            const config = inferLroMode({
+                rawResponse: response.rawResponse,
+                requestPath: lro.requestPath,
+                requestMethod: lro.requestMethod,
+                resourceLocationConfig,
+            });
+            return Object.assign({ response, operationLocation: config === null || config === void 0 ? void 0 : config.operationLocation, resourceLocation: config === null || config === void 0 ? void 0 : config.resourceLocation }, ((config === null || config === void 0 ? void 0 : config.mode) ? { metadata: { mode: config.mode } } : {}));
+        },
+        stateProxy,
+        processResult: processResult
+            ? ({ flatResponse }, state) => processResult(flatResponse, state)
+            : ({ flatResponse }) => flatResponse,
+        getOperationStatus: getStatusFromInitialResponse,
+        setErrorAsResult,
+    });
+}
+function getOperationLocation({ rawResponse }, state) {
+    var _a;
+    const mode = (_a = state.config.metadata) === null || _a === void 0 ? void 0 : _a["mode"];
+    switch (mode) {
+        case "OperationLocation": {
+            return getOperationLocationPollingUrl({
+                operationLocation: getOperationLocationHeader(rawResponse),
+                azureAsyncOperation: getAzureAsyncOperationHeader(rawResponse),
+            });
+        }
+        case "ResourceLocation": {
+            return getLocationHeader(rawResponse);
+        }
+        case "Body":
+        default: {
+            return undefined;
+        }
+    }
+}
+function getOperationStatus({ rawResponse }, state) {
+    var _a;
+    const mode = (_a = state.config.metadata) === null || _a === void 0 ? void 0 : _a["mode"];
+    switch (mode) {
+        case "OperationLocation": {
+            return getStatus(rawResponse);
+        }
+        case "ResourceLocation": {
+            return toOperationStatus(rawResponse.statusCode);
+        }
+        case "Body": {
+            return getProvisioningState(rawResponse);
+        }
+        default:
+            throw new Error(`Internal error: Unexpected operation mode: ${mode}`);
+    }
+}
+function getResourceLocation({ flatResponse }, state) {
+    if (typeof flatResponse === "object") {
+        const resourceLocation = flatResponse.resourceLocation;
+        if (resourceLocation !== undefined) {
+            state.config.resourceLocation = resourceLocation;
+        }
+    }
+    return state.config.resourceLocation;
+}
+function isOperationError(e) {
+    return e.name === "RestError";
+}
+/** Polls the long-running operation. */
+async function pollHttpOperation(inputs) {
+    const { lro, stateProxy, options, processResult, updateState, setDelay, state, setErrorAsResult, } = inputs;
+    return pollOperation({
+        state,
+        stateProxy,
+        setDelay,
+        processResult: processResult
+            ? ({ flatResponse }, inputState) => processResult(flatResponse, inputState)
+            : ({ flatResponse }) => flatResponse,
+        getError: getErrorFromResponse,
+        updateState,
+        getPollingInterval: parseRetryAfter,
+        getOperationLocation,
+        getOperationStatus,
+        isOperationError,
+        getResourceLocation,
+        options,
+        /**
+         * The expansion here is intentional because `lro` could be an object that
+         * references an inner this, so we need to preserve a reference to it.
+         */
+        poll: async (location, inputOptions) => lro.sendPollRequest(location, inputOptions),
+        setErrorAsResult,
+    });
+}
+
+// Copyright (c) Microsoft Corporation.
+const createStateProxy$1 = () => ({
+    /**
+     * The state at this point is created to be of type OperationState<TResult>.
+     * It will be updated later to be of type TState when the
+     * customer-provided callback, `updateState`, is called during polling.
+     */
+    initState: (config) => ({ status: "running", config }),
+    setCanceled: (state) => (state.status = "canceled"),
+    setError: (state, error) => (state.error = error),
+    setResult: (state, result) => (state.result = result),
+    setRunning: (state) => (state.status = "running"),
+    setSucceeded: (state) => (state.status = "succeeded"),
+    setFailed: (state) => (state.status = "failed"),
+    getError: (state) => state.error,
+    getResult: (state) => state.result,
+    isCanceled: (state) => state.status === "canceled",
+    isFailed: (state) => state.status === "failed",
+    isRunning: (state) => state.status === "running",
+    isSucceeded: (state) => state.status === "succeeded",
+});
+/**
+ * Returns a poller factory.
+ */
+function buildCreatePoller(inputs) {
+    const { getOperationLocation, getStatusFromInitialResponse, getStatusFromPollResponse, isOperationError, getResourceLocation, getPollingInterval, getError, resolveOnUnsuccessful, } = inputs;
+    return async ({ init, poll }, options) => {
+        const { processResult, updateState, withOperationLocation: withOperationLocationCallback, intervalInMs = POLL_INTERVAL_IN_MS, restoreFrom, } = options || {};
+        const stateProxy = createStateProxy$1();
+        const withOperationLocation = withOperationLocationCallback
+            ? (() => {
+                let called = false;
+                return (operationLocation, isUpdated) => {
+                    if (isUpdated)
+                        withOperationLocationCallback(operationLocation);
+                    else if (!called)
+                        withOperationLocationCallback(operationLocation);
+                    called = true;
+                };
+            })()
+            : undefined;
+        const state = restoreFrom
+            ? deserializeState(restoreFrom)
+            : await initOperation({
+                init,
+                stateProxy,
+                processResult,
+                getOperationStatus: getStatusFromInitialResponse,
+                withOperationLocation,
+                setErrorAsResult: !resolveOnUnsuccessful,
+            });
+        let resultPromise;
+        const abortController$1 = new abortController.AbortController();
+        const handlers = new Map();
+        const handleProgressEvents = async () => handlers.forEach((h) => h(state));
+        const cancelErrMsg = "Operation was canceled";
+        let currentPollIntervalInMs = intervalInMs;
+        const poller = {
+            getOperationState: () => state,
+            getResult: () => state.result,
+            isDone: () => ["succeeded", "failed", "canceled"].includes(state.status),
+            isStopped: () => resultPromise === undefined,
+            stopPolling: () => {
+                abortController$1.abort();
+            },
+            toString: () => JSON.stringify({
+                state,
+            }),
+            onProgress: (callback) => {
+                const s = Symbol();
+                handlers.set(s, callback);
+                return () => handlers.delete(s);
+            },
+            pollUntilDone: (pollOptions) => (resultPromise !== null && resultPromise !== void 0 ? resultPromise : (resultPromise = (async () => {
+                const { abortSignal: inputAbortSignal } = pollOptions || {};
+                const { signal: abortSignal } = inputAbortSignal
+                    ? new abortController.AbortController([inputAbortSignal, abortController$1.signal])
+                    : abortController$1;
+                if (!poller.isDone()) {
+                    await poller.poll({ abortSignal });
+                    while (!poller.isDone()) {
+                        await coreUtil.delay(currentPollIntervalInMs, { abortSignal });
+                        await poller.poll({ abortSignal });
+                    }
+                }
+                if (resolveOnUnsuccessful) {
+                    return poller.getResult();
+                }
+                else {
+                    switch (state.status) {
+                        case "succeeded":
+                            return poller.getResult();
+                        case "canceled":
+                            throw new Error(cancelErrMsg);
+                        case "failed":
+                            throw state.error;
+                        case "notStarted":
+                        case "running":
+                            throw new Error(`Polling completed without succeeding or failing`);
+                    }
+                }
+            })().finally(() => {
+                resultPromise = undefined;
+            }))),
+            async poll(pollOptions) {
+                if (resolveOnUnsuccessful) {
+                    if (poller.isDone())
+                        return;
+                }
+                else {
+                    switch (state.status) {
+                        case "succeeded":
+                            return;
+                        case "canceled":
+                            throw new Error(cancelErrMsg);
+                        case "failed":
+                            throw state.error;
+                    }
+                }
+                await pollOperation({
+                    poll,
+                    state,
+                    stateProxy,
+                    getOperationLocation,
+                    isOperationError,
+                    withOperationLocation,
+                    getPollingInterval,
+                    getOperationStatus: getStatusFromPollResponse,
+                    getResourceLocation,
+                    processResult,
+                    getError,
+                    updateState,
+                    options: pollOptions,
+                    setDelay: (pollIntervalInMs) => {
+                        currentPollIntervalInMs = pollIntervalInMs;
+                    },
+                    setErrorAsResult: !resolveOnUnsuccessful,
+                });
+                await handleProgressEvents();
+                if (!resolveOnUnsuccessful) {
+                    switch (state.status) {
+                        case "canceled":
+                            throw new Error(cancelErrMsg);
+                        case "failed":
+                            throw state.error;
+                    }
+                }
+            },
+        };
+        return poller;
+    };
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Creates a poller that can be used to poll a long-running operation.
+ * @param lro - Description of the long-running operation
+ * @param options - options to configure the poller
+ * @returns an initialized poller
+ */
+async function createHttpPoller(lro, options) {
+    const { resourceLocationConfig, intervalInMs, processResult, restoreFrom, updateState, withOperationLocation, resolveOnUnsuccessful = false, } = options || {};
+    return buildCreatePoller({
+        getStatusFromInitialResponse,
+        getStatusFromPollResponse: getOperationStatus,
+        isOperationError,
+        getOperationLocation,
+        getResourceLocation,
+        getPollingInterval: parseRetryAfter,
+        getError: getErrorFromResponse,
+        resolveOnUnsuccessful,
+    })({
+        init: async () => {
+            const response = await lro.sendInitialRequest();
+            const config = inferLroMode({
+                rawResponse: response.rawResponse,
+                requestPath: lro.requestPath,
+                requestMethod: lro.requestMethod,
+                resourceLocationConfig,
+            });
+            return Object.assign({ response, operationLocation: config === null || config === void 0 ? void 0 : config.operationLocation, resourceLocation: config === null || config === void 0 ? void 0 : config.resourceLocation }, ((config === null || config === void 0 ? void 0 : config.mode) ? { metadata: { mode: config.mode } } : {}));
+        },
+        poll: lro.sendPollRequest,
+    }, {
+        intervalInMs,
+        withOperationLocation,
+        restoreFrom,
+        updateState,
+        processResult: processResult
+            ? ({ flatResponse }, state) => processResult(flatResponse, state)
+            : ({ flatResponse }) => flatResponse,
+    });
+}
+
+// Copyright (c) Microsoft Corporation.
+const createStateProxy = () => ({
+    initState: (config) => ({ config, isStarted: true }),
+    setCanceled: (state) => (state.isCancelled = true),
+    setError: (state, error) => (state.error = error),
+    setResult: (state, result) => (state.result = result),
+    setRunning: (state) => (state.isStarted = true),
+    setSucceeded: (state) => (state.isCompleted = true),
+    setFailed: () => {
+        /** empty body */
+    },
+    getError: (state) => state.error,
+    getResult: (state) => state.result,
+    isCanceled: (state) => !!state.isCancelled,
+    isFailed: (state) => !!state.error,
+    isRunning: (state) => !!state.isStarted,
+    isSucceeded: (state) => Boolean(state.isCompleted && !state.isCancelled && !state.error),
+});
+class GenericPollOperation {
+    constructor(state, lro, setErrorAsResult, lroResourceLocationConfig, processResult, updateState, isDone) {
+        this.state = state;
+        this.lro = lro;
+        this.setErrorAsResult = setErrorAsResult;
+        this.lroResourceLocationConfig = lroResourceLocationConfig;
+        this.processResult = processResult;
+        this.updateState = updateState;
+        this.isDone = isDone;
+    }
+    setPollerConfig(pollerConfig) {
+        this.pollerConfig = pollerConfig;
+    }
+    async update(options) {
+        var _a;
+        const stateProxy = createStateProxy();
+        if (!this.state.isStarted) {
+            this.state = Object.assign(Object.assign({}, this.state), (await initHttpOperation({
+                lro: this.lro,
+                stateProxy,
+                resourceLocationConfig: this.lroResourceLocationConfig,
+                processResult: this.processResult,
+                setErrorAsResult: this.setErrorAsResult,
+            })));
+        }
+        const updateState = this.updateState;
+        const isDone = this.isDone;
+        if (!this.state.isCompleted && this.state.error === undefined) {
+            await pollHttpOperation({
+                lro: this.lro,
+                state: this.state,
+                stateProxy,
+                processResult: this.processResult,
+                updateState: updateState
+                    ? (state, { rawResponse }) => updateState(state, rawResponse)
+                    : undefined,
+                isDone: isDone
+                    ? ({ flatResponse }, state) => isDone(flatResponse, state)
+                    : undefined,
+                options,
+                setDelay: (intervalInMs) => {
+                    this.pollerConfig.intervalInMs = intervalInMs;
+                },
+                setErrorAsResult: this.setErrorAsResult,
+            });
+        }
+        (_a = options === null || options === void 0 ? void 0 : options.fireProgress) === null || _a === void 0 ? void 0 : _a.call(options, this.state);
+        return this;
+    }
+    async cancel() {
+        logger.error("`cancelOperation` is deprecated because it wasn't implemented");
+        return this;
+    }
+    /**
+     * Serializes the Poller operation.
+     */
+    toString() {
+        return JSON.stringify({
+            state: this.state,
+        });
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * When a poller is manually stopped through the `stopPolling` method,
+ * the poller will be rejected with an instance of the PollerStoppedError.
+ */
+class PollerStoppedError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "PollerStoppedError";
+        Object.setPrototypeOf(this, PollerStoppedError.prototype);
+    }
+}
+/**
+ * When the operation is cancelled, the poller will be rejected with an instance
+ * of the PollerCancelledError.
+ */
+class PollerCancelledError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "PollerCancelledError";
+        Object.setPrototypeOf(this, PollerCancelledError.prototype);
+    }
+}
+/**
+ * A class that represents the definition of a program that polls through consecutive requests
+ * until it reaches a state of completion.
+ *
+ * A poller can be executed manually, by polling request by request by calling to the `poll()` method repeatedly, until its operation is completed.
+ * It also provides a way to wait until the operation completes, by calling `pollUntilDone()` and waiting until the operation finishes.
+ * Pollers can also request the cancellation of the ongoing process to whom is providing the underlying long running operation.
+ *
+ * ```ts
+ * const poller = new MyPoller();
+ *
+ * // Polling just once:
+ * await poller.poll();
+ *
+ * // We can try to cancel the request here, by calling:
+ * //
+ * //     await poller.cancelOperation();
+ * //
+ *
+ * // Getting the final result:
+ * const result = await poller.pollUntilDone();
+ * ```
+ *
+ * The Poller is defined by two types, a type representing the state of the poller, which
+ * must include a basic set of properties from `PollOperationState<TResult>`,
+ * and a return type defined by `TResult`, which can be anything.
+ *
+ * The Poller class implements the `PollerLike` interface, which allows poller implementations to avoid having
+ * to export the Poller's class directly, and instead only export the already instantiated poller with the PollerLike type.
+ *
+ * ```ts
+ * class Client {
+ *   public async makePoller: PollerLike<MyOperationState, MyResult> {
+ *     const poller = new MyPoller({});
+ *     // It might be preferred to return the poller after the first request is made,
+ *     // so that some information can be obtained right away.
+ *     await poller.poll();
+ *     return poller;
+ *   }
+ * }
+ *
+ * const poller: PollerLike<MyOperationState, MyResult> = myClient.makePoller();
+ * ```
+ *
+ * A poller can be created through its constructor, then it can be polled until it's completed.
+ * At any point in time, the state of the poller can be obtained without delay through the getOperationState method.
+ * At any point in time, the intermediate forms of the result type can be requested without delay.
+ * Once the underlying operation is marked as completed, the poller will stop and the final value will be returned.
+ *
+ * ```ts
+ * const poller = myClient.makePoller();
+ * const state: MyOperationState = poller.getOperationState();
+ *
+ * // The intermediate result can be obtained at any time.
+ * const result: MyResult | undefined = poller.getResult();
+ *
+ * // The final result can only be obtained after the poller finishes.
+ * const result: MyResult = await poller.pollUntilDone();
+ * ```
+ *
+ */
+// eslint-disable-next-line no-use-before-define
+class Poller {
+    /**
+     * A poller needs to be initialized by passing in at least the basic properties of the `PollOperation<TState, TResult>`.
+     *
+     * When writing an implementation of a Poller, this implementation needs to deal with the initialization
+     * of any custom state beyond the basic definition of the poller. The basic poller assumes that the poller's
+     * operation has already been defined, at least its basic properties. The code below shows how to approach
+     * the definition of the constructor of a new custom poller.
+     *
+     * ```ts
+     * export class MyPoller extends Poller<MyOperationState, string> {
+     *   constructor({
+     *     // Anything you might need outside of the basics
+     *   }) {
+     *     let state: MyOperationState = {
+     *       privateProperty: private,
+     *       publicProperty: public,
+     *     };
+     *
+     *     const operation = {
+     *       state,
+     *       update,
+     *       cancel,
+     *       toString
+     *     }
+     *
+     *     // Sending the operation to the parent's constructor.
+     *     super(operation);
+     *
+     *     // You can assign more local properties here.
+     *   }
+     * }
+     * ```
+     *
+     * Inside of this constructor, a new promise is created. This will be used to
+     * tell the user when the poller finishes (see `pollUntilDone()`). The promise's
+     * resolve and reject methods are also used internally to control when to resolve
+     * or reject anyone waiting for the poller to finish.
+     *
+     * The constructor of a custom implementation of a poller is where any serialized version of
+     * a previous poller's operation should be deserialized into the operation sent to the
+     * base constructor. For example:
+     *
+     * ```ts
+     * export class MyPoller extends Poller<MyOperationState, string> {
+     *   constructor(
+     *     baseOperation: string | undefined
+     *   ) {
+     *     let state: MyOperationState = {};
+     *     if (baseOperation) {
+     *       state = {
+     *         ...JSON.parse(baseOperation).state,
+     *         ...state
+     *       };
+     *     }
+     *     const operation = {
+     *       state,
+     *       // ...
+     *     }
+     *     super(operation);
+     *   }
+     * }
+     * ```
+     *
+     * @param operation - Must contain the basic properties of `PollOperation<State, TResult>`.
+     */
+    constructor(operation) {
+        /** controls whether to throw an error if the operation failed or was canceled. */
+        this.resolveOnUnsuccessful = false;
+        this.stopped = true;
+        this.pollProgressCallbacks = [];
+        this.operation = operation;
+        this.promise = new Promise((resolve, reject) => {
+            this.resolve = resolve;
+            this.reject = reject;
+        });
+        // This prevents the UnhandledPromiseRejectionWarning in node.js from being thrown.
+        // The above warning would get thrown if `poller.poll` is called, it returns an error,
+        // and pullUntilDone did not have a .catch or await try/catch on it's return value.
+        this.promise.catch(() => {
+            /* intentionally blank */
+        });
+    }
+    /**
+     * Starts a loop that will break only if the poller is done
+     * or if the poller is stopped.
+     */
+    async startPolling(pollOptions = {}) {
+        if (this.stopped) {
+            this.stopped = false;
+        }
+        while (!this.isStopped() && !this.isDone()) {
+            await this.poll(pollOptions);
+            await this.delay();
+        }
+    }
+    /**
+     * pollOnce does one polling, by calling to the update method of the underlying
+     * poll operation to make any relevant change effective.
+     *
+     * It only optionally receives an object with an abortSignal property, from \@azure/abort-controller's AbortSignalLike.
+     *
+     * @param options - Optional properties passed to the operation's update method.
+     */
+    async pollOnce(options = {}) {
+        if (!this.isDone()) {
+            this.operation = await this.operation.update({
+                abortSignal: options.abortSignal,
+                fireProgress: this.fireProgress.bind(this),
+            });
+        }
+        this.processUpdatedState();
+    }
+    /**
+     * fireProgress calls the functions passed in via onProgress the method of the poller.
+     *
+     * It loops over all of the callbacks received from onProgress, and executes them, sending them
+     * the current operation state.
+     *
+     * @param state - The current operation state.
+     */
+    fireProgress(state) {
+        for (const callback of this.pollProgressCallbacks) {
+            callback(state);
+        }
+    }
+    /**
+     * Invokes the underlying operation's cancel method.
+     */
+    async cancelOnce(options = {}) {
+        this.operation = await this.operation.cancel(options);
+    }
+    /**
+     * Returns a promise that will resolve once a single polling request finishes.
+     * It does this by calling the update method of the Poller's operation.
+     *
+     * It only optionally receives an object with an abortSignal property, from \@azure/abort-controller's AbortSignalLike.
+     *
+     * @param options - Optional properties passed to the operation's update method.
+     */
+    poll(options = {}) {
+        if (!this.pollOncePromise) {
+            this.pollOncePromise = this.pollOnce(options);
+            const clearPollOncePromise = () => {
+                this.pollOncePromise = undefined;
+            };
+            this.pollOncePromise.then(clearPollOncePromise, clearPollOncePromise).catch(this.reject);
+        }
+        return this.pollOncePromise;
+    }
+    processUpdatedState() {
+        if (this.operation.state.error) {
+            this.stopped = true;
+            if (!this.resolveOnUnsuccessful) {
+                this.reject(this.operation.state.error);
+                throw this.operation.state.error;
+            }
+        }
+        if (this.operation.state.isCancelled) {
+            this.stopped = true;
+            if (!this.resolveOnUnsuccessful) {
+                const error = new PollerCancelledError("Operation was canceled");
+                this.reject(error);
+                throw error;
+            }
+        }
+        if (this.isDone() && this.resolve) {
+            // If the poller has finished polling, this means we now have a result.
+            // However, it can be the case that TResult is instantiated to void, so
+            // we are not expecting a result anyway. To assert that we might not
+            // have a result eventually after finishing polling, we cast the result
+            // to TResult.
+            this.resolve(this.getResult());
+        }
+    }
+    /**
+     * Returns a promise that will resolve once the underlying operation is completed.
+     */
+    async pollUntilDone(pollOptions = {}) {
+        if (this.stopped) {
+            this.startPolling(pollOptions).catch(this.reject);
+        }
+        // This is needed because the state could have been updated by
+        // `cancelOperation`, e.g. the operation is canceled or an error occurred.
+        this.processUpdatedState();
+        return this.promise;
+    }
+    /**
+     * Invokes the provided callback after each polling is completed,
+     * sending the current state of the poller's operation.
+     *
+     * It returns a method that can be used to stop receiving updates on the given callback function.
+     */
+    onProgress(callback) {
+        this.pollProgressCallbacks.push(callback);
+        return () => {
+            this.pollProgressCallbacks = this.pollProgressCallbacks.filter((c) => c !== callback);
+        };
+    }
+    /**
+     * Returns true if the poller has finished polling.
+     */
+    isDone() {
+        const state = this.operation.state;
+        return Boolean(state.isCompleted || state.isCancelled || state.error);
+    }
+    /**
+     * Stops the poller from continuing to poll.
+     */
+    stopPolling() {
+        if (!this.stopped) {
+            this.stopped = true;
+            if (this.reject) {
+                this.reject(new PollerStoppedError("This poller is already stopped"));
+            }
+        }
+    }
+    /**
+     * Returns true if the poller is stopped.
+     */
+    isStopped() {
+        return this.stopped;
+    }
+    /**
+     * Attempts to cancel the underlying operation.
+     *
+     * It only optionally receives an object with an abortSignal property, from \@azure/abort-controller's AbortSignalLike.
+     *
+     * If it's called again before it finishes, it will throw an error.
+     *
+     * @param options - Optional properties passed to the operation's update method.
+     */
+    cancelOperation(options = {}) {
+        if (!this.cancelPromise) {
+            this.cancelPromise = this.cancelOnce(options);
+        }
+        else if (options.abortSignal) {
+            throw new Error("A cancel request is currently pending");
+        }
+        return this.cancelPromise;
+    }
+    /**
+     * Returns the state of the operation.
+     *
+     * Even though TState will be the same type inside any of the methods of any extension of the Poller class,
+     * implementations of the pollers can customize what's shared with the public by writing their own
+     * version of the `getOperationState` method, and by defining two types, one representing the internal state of the poller
+     * and a public type representing a safe to share subset of the properties of the internal state.
+     * Their definition of getOperationState can then return their public type.
+     *
+     * Example:
+     *
+     * ```ts
+     * // Let's say we have our poller's operation state defined as:
+     * interface MyOperationState extends PollOperationState<ResultType> {
+     *   privateProperty?: string;
+     *   publicProperty?: string;
+     * }
+     *
+     * // To allow us to have a true separation of public and private state, we have to define another interface:
+     * interface PublicState extends PollOperationState<ResultType> {
+     *   publicProperty?: string;
+     * }
+     *
+     * // Then, we define our Poller as follows:
+     * export class MyPoller extends Poller<MyOperationState, ResultType> {
+     *   // ... More content is needed here ...
+     *
+     *   public getOperationState(): PublicState {
+     *     const state: PublicState = this.operation.state;
+     *     return {
+     *       // Properties from PollOperationState<TResult>
+     *       isStarted: state.isStarted,
+     *       isCompleted: state.isCompleted,
+     *       isCancelled: state.isCancelled,
+     *       error: state.error,
+     *       result: state.result,
+     *
+     *       // The only other property needed by PublicState.
+     *       publicProperty: state.publicProperty
+     *     }
+     *   }
+     * }
+     * ```
+     *
+     * You can see this in the tests of this repository, go to the file:
+     * `../test/utils/testPoller.ts`
+     * and look for the getOperationState implementation.
+     */
+    getOperationState() {
+        return this.operation.state;
+    }
+    /**
+     * Returns the result value of the operation,
+     * regardless of the state of the poller.
+     * It can return undefined or an incomplete form of the final TResult value
+     * depending on the implementation.
+     */
+    getResult() {
+        const state = this.operation.state;
+        return state.result;
+    }
+    /**
+     * Returns a serialized version of the poller's operation
+     * by invoking the operation's toString method.
+     */
+    toString() {
+        return this.operation.toString();
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * The LRO Engine, a class that performs polling.
+ */
+class LroEngine extends Poller {
+    constructor(lro, options) {
+        const { intervalInMs = POLL_INTERVAL_IN_MS, resumeFrom, resolveOnUnsuccessful = false, isDone, lroResourceLocationConfig, processResult, updateState, } = options || {};
+        const state = resumeFrom
+            ? deserializeState(resumeFrom)
+            : {};
+        const operation = new GenericPollOperation(state, lro, !resolveOnUnsuccessful, lroResourceLocationConfig, processResult, updateState, isDone);
+        super(operation);
+        this.resolveOnUnsuccessful = resolveOnUnsuccessful;
+        this.config = { intervalInMs: intervalInMs };
+        operation.setPollerConfig(this.config);
+    }
+    /**
+     * The method used by the poller to wait before attempting to update its operation.
+     */
+    delay() {
+        return new Promise((resolve) => setTimeout(() => resolve(), this.config.intervalInMs));
+    }
+}
+
+exports.LroEngine = LroEngine;
+exports.Poller = Poller;
+exports.PollerCancelledError = PollerCancelledError;
+exports.PollerStoppedError = PollerStoppedError;
+exports.createHttpPoller = createHttpPoller;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 4559:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var tslib = __nccwpck_require__(4351);
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * returns an async iterator that iterates over results. It also has a `byPage`
+ * method that returns pages of items at once.
+ *
+ * @param pagedResult - an object that specifies how to get pages.
+ * @returns a paged async iterator that iterates over results.
+ */
+function getPagedAsyncIterator(pagedResult) {
+    var _a;
+    const iter = getItemAsyncIterator(pagedResult);
+    return {
+        next() {
+            return iter.next();
+        },
+        [Symbol.asyncIterator]() {
+            return this;
+        },
+        byPage: (_a = pagedResult === null || pagedResult === void 0 ? void 0 : pagedResult.byPage) !== null && _a !== void 0 ? _a : ((settings) => {
+            const { continuationToken, maxPageSize } = settings !== null && settings !== void 0 ? settings : {};
+            return getPageAsyncIterator(pagedResult, {
+                pageLink: continuationToken,
+                maxPageSize,
+            });
+        }),
+    };
+}
+function getItemAsyncIterator(pagedResult) {
+    return tslib.__asyncGenerator(this, arguments, function* getItemAsyncIterator_1() {
+        var e_1, _a, e_2, _b;
+        const pages = getPageAsyncIterator(pagedResult);
+        const firstVal = yield tslib.__await(pages.next());
+        // if the result does not have an array shape, i.e. TPage = TElement, then we return it as is
+        if (!Array.isArray(firstVal.value)) {
+            // can extract elements from this page
+            const { toElements } = pagedResult;
+            if (toElements) {
+                yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(toElements(firstVal.value))));
+                try {
+                    for (var pages_1 = tslib.__asyncValues(pages), pages_1_1; pages_1_1 = yield tslib.__await(pages_1.next()), !pages_1_1.done;) {
+                        const page = pages_1_1.value;
+                        yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(toElements(page))));
+                    }
+                }
+                catch (e_1_1) { e_1 = { error: e_1_1 }; }
+                finally {
+                    try {
+                        if (pages_1_1 && !pages_1_1.done && (_a = pages_1.return)) yield tslib.__await(_a.call(pages_1));
+                    }
+                    finally { if (e_1) throw e_1.error; }
+                }
+            }
+            else {
+                yield yield tslib.__await(firstVal.value);
+                // `pages` is of type `AsyncIterableIterator<TPage>` but TPage = TElement in this case
+                yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(pages)));
+            }
+        }
+        else {
+            yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(firstVal.value)));
+            try {
+                for (var pages_2 = tslib.__asyncValues(pages), pages_2_1; pages_2_1 = yield tslib.__await(pages_2.next()), !pages_2_1.done;) {
+                    const page = pages_2_1.value;
+                    // pages is of type `AsyncIterableIterator<TPage>` so `page` is of type `TPage`. In this branch,
+                    // it must be the case that `TPage = TElement[]`
+                    yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(page)));
+                }
+            }
+            catch (e_2_1) { e_2 = { error: e_2_1 }; }
+            finally {
+                try {
+                    if (pages_2_1 && !pages_2_1.done && (_b = pages_2.return)) yield tslib.__await(_b.call(pages_2));
+                }
+                finally { if (e_2) throw e_2.error; }
+            }
+        }
+    });
+}
+function getPageAsyncIterator(pagedResult, options = {}) {
+    return tslib.__asyncGenerator(this, arguments, function* getPageAsyncIterator_1() {
+        const { pageLink, maxPageSize } = options;
+        let response = yield tslib.__await(pagedResult.getPage(pageLink !== null && pageLink !== void 0 ? pageLink : pagedResult.firstPageLink, maxPageSize));
+        if (!response) {
+            return yield tslib.__await(void 0);
+        }
+        yield yield tslib.__await(response.page);
+        while (response.nextPageLink) {
+            response = yield tslib.__await(pagedResult.getPage(response.nextPageLink, maxPageSize));
+            if (!response) {
+                return yield tslib.__await(void 0);
+            }
+            yield yield tslib.__await(response.page);
+        }
+    });
+}
+
+exports.getPagedAsyncIterator = getPagedAsyncIterator;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
 /***/ 8121:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -11691,6 +13201,6824 @@ exports.getDefaultAzureCredential = getDefaultAzureCredential;
 exports.logger = logger$n;
 exports.serializeAuthenticationRecord = serializeAuthenticationRecord;
 exports.useIdentityPlugin = useIdentityPlugin;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 2549:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var tslib = __nccwpck_require__(4351);
+var coreRestPipeline = __nccwpck_require__(8121);
+var logger$1 = __nccwpck_require__(3233);
+var coreClient = __nccwpck_require__(9729);
+var coreHttpCompat = __nccwpck_require__(6232);
+__nccwpck_require__(4559);
+var keyvaultCommon = __nccwpck_require__(3139);
+var coreUtil = __nccwpck_require__(1333);
+var coreLro = __nccwpck_require__(7094);
+var coreTracing = __nccwpck_require__(4175);
+
+function _interopNamespace(e) {
+    if (e && e.__esModule) return e;
+    var n = Object.create(null);
+    if (e) {
+        Object.keys(e).forEach(function (k) {
+            if (k !== 'default') {
+                var d = Object.getOwnPropertyDescriptor(e, k);
+                Object.defineProperty(n, k, d.get ? d : {
+                    enumerable: true,
+                    get: function () { return e[k]; }
+                });
+            }
+        });
+    }
+    n["default"] = e;
+    return Object.freeze(n);
+}
+
+var coreClient__namespace = /*#__PURE__*/_interopNamespace(coreClient);
+var coreHttpCompat__namespace = /*#__PURE__*/_interopNamespace(coreHttpCompat);
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * The \@azure/logger configuration for this package.
+ */
+const logger = logger$1.createClientLogger("keyvault-certificates");
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * The latest supported KeyVault service API version
+ */
+const LATEST_API_VERSION = "7.4";
+/**
+ * Well known issuers for choosing a default
+ */
+exports.WellKnownIssuer = void 0;
+(function (WellKnownIssuerNames) {
+    /**
+     * For self signed certificates
+     */
+    WellKnownIssuerNames["Self"] = "Self";
+    /**
+     * For certificates whose issuer will be defined later
+     */
+    WellKnownIssuerNames["Unknown"] = "Unknown";
+})(exports.WellKnownIssuer || (exports.WellKnownIssuer = {}));
+/**
+ * The DefaultCertificatePolicy exports values that
+ * are useful as default parameters to methods that
+ * modify the certificate's policy.
+ */
+const DefaultCertificatePolicy = {
+    issuerName: "Self",
+    subject: "cn=MyCert",
+};
+/** Known values of {@link CertificateKeyCurveName} that the service accepts. */
+exports.KnownCertificateKeyCurveNames = void 0;
+(function (KnownCertificateKeyCurveNames) {
+    /**
+     * P-256 Key Curve.
+     */
+    KnownCertificateKeyCurveNames["P256"] = "P-256";
+    /**
+     * P-384 Key Curve.
+     */
+    KnownCertificateKeyCurveNames["P384"] = "P-384";
+    /**
+     * P-521 Key Curve.
+     */
+    KnownCertificateKeyCurveNames["P521"] = "P-521";
+    /**
+     * P-256K Key Curve.
+     */
+    KnownCertificateKeyCurveNames["P256K"] = "P-256K";
+})(exports.KnownCertificateKeyCurveNames || (exports.KnownCertificateKeyCurveNames = {}));
+/** Known values of {@link CertificateKeyType} that the service accepts. */
+exports.KnownCertificateKeyTypes = void 0;
+(function (KnownCertificateKeyTypes) {
+    /**
+     * EC Key Type.
+     */
+    KnownCertificateKeyTypes["EC"] = "EC";
+    /**
+     * EC-HSM Key Type.
+     */
+    KnownCertificateKeyTypes["ECHSM"] = "EC-HSM";
+    /**
+     * RSA Key Type.
+     */
+    KnownCertificateKeyTypes["RSA"] = "RSA";
+    /**
+     * RSA-HSM Key Type.
+     */
+    KnownCertificateKeyTypes["RSAHSM"] = "RSA-HSM";
+    /**
+     * oct Key Type
+     */
+    KnownCertificateKeyTypes["Oct"] = "oct";
+    /**
+     * oct-HSM Key Type
+     */
+    KnownCertificateKeyTypes["OctHSM"] = "oct-HSM";
+})(exports.KnownCertificateKeyTypes || (exports.KnownCertificateKeyTypes = {}));
+/** Known values of {@link KeyUsageType} that the service accepts. */
+exports.KnownKeyUsageTypes = void 0;
+(function (KnownKeyUsageTypes) {
+    /**
+     * DigitalSignature Usage Type.
+     */
+    KnownKeyUsageTypes["DigitalSignature"] = "digitalSignature";
+    /**
+     * NonRepudiation Usage Type.
+     */
+    KnownKeyUsageTypes["NonRepudiation"] = "nonRepudiation";
+    /**
+     * KeyEncipherment Usage Type.
+     */
+    KnownKeyUsageTypes["KeyEncipherment"] = "keyEncipherment";
+    /**
+     * DataEncipherment Usage Type.
+     */
+    KnownKeyUsageTypes["DataEncipherment"] = "dataEncipherment";
+    /**
+     * KeyAgreement Usage Type.
+     */
+    KnownKeyUsageTypes["KeyAgreement"] = "keyAgreement";
+    /**
+     * KeyCertSign Usage Type.
+     */
+    KnownKeyUsageTypes["KeyCertSign"] = "keyCertSign";
+    /**
+     * CRLSign Usage Type.
+     */
+    KnownKeyUsageTypes["CRLSign"] = "cRLSign";
+    /**
+     * EncipherOnly Usage Type.
+     */
+    KnownKeyUsageTypes["EncipherOnly"] = "encipherOnly";
+    /**
+     * DecipherOnly Usage Type.
+     */
+    KnownKeyUsageTypes["DecipherOnly"] = "decipherOnly";
+})(exports.KnownKeyUsageTypes || (exports.KnownKeyUsageTypes = {}));
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+/** Known values of {@link ApiVersion74} that the service accepts. */
+var KnownApiVersion74;
+(function (KnownApiVersion74) {
+    /** Api Version '7.4' */
+    KnownApiVersion74["Seven4"] = "7.4";
+})(KnownApiVersion74 || (KnownApiVersion74 = {}));
+/** Known values of {@link DeletionRecoveryLevel} that the service accepts. */
+exports.KnownDeletionRecoveryLevels = void 0;
+(function (KnownDeletionRecoveryLevel) {
+    /** Denotes a vault state in which deletion is an irreversible operation, without the possibility for recovery. This level corresponds to no protection being available against a Delete operation; the data is irretrievably lost upon accepting a Delete operation at the entity level or higher (vault, resource group, subscription etc.) */
+    KnownDeletionRecoveryLevel["Purgeable"] = "Purgeable";
+    /** Denotes a vault state in which deletion is recoverable, and which also permits immediate and permanent deletion (i.e. purge). This level guarantees the recoverability of the deleted entity during the retention interval (90 days), unless a Purge operation is requested, or the subscription is cancelled. System wil permanently delete it after 90 days, if not recovered */
+    KnownDeletionRecoveryLevel["RecoverablePurgeable"] = "Recoverable+Purgeable";
+    /** Denotes a vault state in which deletion is recoverable without the possibility for immediate and permanent deletion (i.e. purge). This level guarantees the recoverability of the deleted entity during the retention interval(90 days) and while the subscription is still available. System wil permanently delete it after 90 days, if not recovered */
+    KnownDeletionRecoveryLevel["Recoverable"] = "Recoverable";
+    /** Denotes a vault and subscription state in which deletion is recoverable within retention interval (90 days), immediate and permanent deletion (i.e. purge) is not permitted, and in which the subscription itself  cannot be permanently canceled. System wil permanently delete it after 90 days, if not recovered */
+    KnownDeletionRecoveryLevel["RecoverableProtectedSubscription"] = "Recoverable+ProtectedSubscription";
+    /** Denotes a vault state in which deletion is recoverable, and which also permits immediate and permanent deletion (i.e. purge when 7<= SoftDeleteRetentionInDays < 90). This level guarantees the recoverability of the deleted entity during the retention interval, unless a Purge operation is requested, or the subscription is cancelled. */
+    KnownDeletionRecoveryLevel["CustomizedRecoverablePurgeable"] = "CustomizedRecoverable+Purgeable";
+    /** Denotes a vault state in which deletion is recoverable without the possibility for immediate and permanent deletion (i.e. purge when 7<= SoftDeleteRetentionInDays < 90).This level guarantees the recoverability of the deleted entity during the retention interval and while the subscription is still available. */
+    KnownDeletionRecoveryLevel["CustomizedRecoverable"] = "CustomizedRecoverable";
+    /** Denotes a vault and subscription state in which deletion is recoverable, immediate and permanent deletion (i.e. purge) is not permitted, and in which the subscription itself cannot be permanently canceled when 7<= SoftDeleteRetentionInDays < 90. This level guarantees the recoverability of the deleted entity during the retention interval, and also reflects the fact that the subscription itself cannot be cancelled. */
+    KnownDeletionRecoveryLevel["CustomizedRecoverableProtectedSubscription"] = "CustomizedRecoverable+ProtectedSubscription";
+})(exports.KnownDeletionRecoveryLevels || (exports.KnownDeletionRecoveryLevels = {}));
+/** Known values of {@link JsonWebKeyType} that the service accepts. */
+var KnownJsonWebKeyType;
+(function (KnownJsonWebKeyType) {
+    KnownJsonWebKeyType["EC"] = "EC";
+    KnownJsonWebKeyType["ECHSM"] = "EC-HSM";
+    KnownJsonWebKeyType["RSA"] = "RSA";
+    KnownJsonWebKeyType["RSAHSM"] = "RSA-HSM";
+    KnownJsonWebKeyType["Oct"] = "oct";
+    KnownJsonWebKeyType["OctHSM"] = "oct-HSM";
+})(KnownJsonWebKeyType || (KnownJsonWebKeyType = {}));
+/** Known values of {@link JsonWebKeyCurveName} that the service accepts. */
+var KnownJsonWebKeyCurveName;
+(function (KnownJsonWebKeyCurveName) {
+    KnownJsonWebKeyCurveName["P256"] = "P-256";
+    KnownJsonWebKeyCurveName["P384"] = "P-384";
+    KnownJsonWebKeyCurveName["P521"] = "P-521";
+    KnownJsonWebKeyCurveName["P256K"] = "P-256K";
+})(KnownJsonWebKeyCurveName || (KnownJsonWebKeyCurveName = {}));
+/** Known values of {@link KeyUsageType} that the service accepts. */
+var KnownKeyUsageType;
+(function (KnownKeyUsageType) {
+    KnownKeyUsageType["DigitalSignature"] = "digitalSignature";
+    KnownKeyUsageType["NonRepudiation"] = "nonRepudiation";
+    KnownKeyUsageType["KeyEncipherment"] = "keyEncipherment";
+    KnownKeyUsageType["DataEncipherment"] = "dataEncipherment";
+    KnownKeyUsageType["KeyAgreement"] = "keyAgreement";
+    KnownKeyUsageType["KeyCertSign"] = "keyCertSign";
+    KnownKeyUsageType["CRLSign"] = "cRLSign";
+    KnownKeyUsageType["EncipherOnly"] = "encipherOnly";
+    KnownKeyUsageType["DecipherOnly"] = "decipherOnly";
+})(KnownKeyUsageType || (KnownKeyUsageType = {}));
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+const CertificateListResult = {
+    type: {
+        name: "Composite",
+        className: "CertificateListResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "CertificateItem"
+                        }
+                    }
+                }
+            },
+            nextLink: {
+                serializedName: "nextLink",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const CertificateItem = {
+    type: {
+        name: "Composite",
+        className: "CertificateItem",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                type: {
+                    name: "String"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "CertificateAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            },
+            x509Thumbprint: {
+                serializedName: "x5t",
+                type: {
+                    name: "Base64Url"
+                }
+            }
+        }
+    }
+};
+const Attributes = {
+    type: {
+        name: "Composite",
+        className: "Attributes",
+        modelProperties: {
+            enabled: {
+                serializedName: "enabled",
+                type: {
+                    name: "Boolean"
+                }
+            },
+            notBefore: {
+                serializedName: "nbf",
+                type: {
+                    name: "UnixTime"
+                }
+            },
+            expires: {
+                serializedName: "exp",
+                type: {
+                    name: "UnixTime"
+                }
+            },
+            created: {
+                serializedName: "created",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            },
+            updated: {
+                serializedName: "updated",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            }
+        }
+    }
+};
+const KeyVaultError = {
+    type: {
+        name: "Composite",
+        className: "KeyVaultError",
+        modelProperties: {
+            error: {
+                serializedName: "error",
+                type: {
+                    name: "Composite",
+                    className: "ErrorModel"
+                }
+            }
+        }
+    }
+};
+const ErrorModel = {
+    type: {
+        name: "Composite",
+        className: "ErrorModel",
+        modelProperties: {
+            code: {
+                serializedName: "code",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            message: {
+                serializedName: "message",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            innerError: {
+                serializedName: "innererror",
+                type: {
+                    name: "Composite",
+                    className: "ErrorModel"
+                }
+            }
+        }
+    }
+};
+const CertificateBundle = {
+    type: {
+        name: "Composite",
+        className: "CertificateBundle",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            kid: {
+                serializedName: "kid",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            sid: {
+                serializedName: "sid",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            x509Thumbprint: {
+                serializedName: "x5t",
+                readOnly: true,
+                type: {
+                    name: "Base64Url"
+                }
+            },
+            policy: {
+                serializedName: "policy",
+                type: {
+                    name: "Composite",
+                    className: "CertificatePolicy"
+                }
+            },
+            cer: {
+                serializedName: "cer",
+                type: {
+                    name: "ByteArray"
+                }
+            },
+            contentType: {
+                serializedName: "contentType",
+                type: {
+                    name: "String"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "CertificateAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            }
+        }
+    }
+};
+const CertificatePolicy = {
+    type: {
+        name: "Composite",
+        className: "CertificatePolicy",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            keyProperties: {
+                serializedName: "key_props",
+                type: {
+                    name: "Composite",
+                    className: "KeyProperties"
+                }
+            },
+            secretProperties: {
+                serializedName: "secret_props",
+                type: {
+                    name: "Composite",
+                    className: "SecretProperties"
+                }
+            },
+            x509CertificateProperties: {
+                serializedName: "x509_props",
+                type: {
+                    name: "Composite",
+                    className: "X509CertificateProperties"
+                }
+            },
+            lifetimeActions: {
+                serializedName: "lifetime_actions",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "LifetimeAction"
+                        }
+                    }
+                }
+            },
+            issuerParameters: {
+                serializedName: "issuer",
+                type: {
+                    name: "Composite",
+                    className: "IssuerParameters"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "CertificateAttributes"
+                }
+            }
+        }
+    }
+};
+const KeyProperties = {
+    type: {
+        name: "Composite",
+        className: "KeyProperties",
+        modelProperties: {
+            exportable: {
+                serializedName: "exportable",
+                type: {
+                    name: "Boolean"
+                }
+            },
+            keyType: {
+                serializedName: "kty",
+                type: {
+                    name: "String"
+                }
+            },
+            keySize: {
+                serializedName: "key_size",
+                type: {
+                    name: "Number"
+                }
+            },
+            reuseKey: {
+                serializedName: "reuse_key",
+                type: {
+                    name: "Boolean"
+                }
+            },
+            curve: {
+                serializedName: "crv",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const SecretProperties = {
+    type: {
+        name: "Composite",
+        className: "SecretProperties",
+        modelProperties: {
+            contentType: {
+                serializedName: "contentType",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const X509CertificateProperties = {
+    type: {
+        name: "Composite",
+        className: "X509CertificateProperties",
+        modelProperties: {
+            subject: {
+                serializedName: "subject",
+                type: {
+                    name: "String"
+                }
+            },
+            ekus: {
+                serializedName: "ekus",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "String"
+                        }
+                    }
+                }
+            },
+            subjectAlternativeNames: {
+                serializedName: "sans",
+                type: {
+                    name: "Composite",
+                    className: "SubjectAlternativeNames"
+                }
+            },
+            keyUsage: {
+                serializedName: "key_usage",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "String"
+                        }
+                    }
+                }
+            },
+            validityInMonths: {
+                constraints: {
+                    InclusiveMinimum: 0
+                },
+                serializedName: "validity_months",
+                type: {
+                    name: "Number"
+                }
+            }
+        }
+    }
+};
+const SubjectAlternativeNames = {
+    type: {
+        name: "Composite",
+        className: "SubjectAlternativeNames",
+        modelProperties: {
+            emails: {
+                serializedName: "emails",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "String"
+                        }
+                    }
+                }
+            },
+            dnsNames: {
+                serializedName: "dns_names",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "String"
+                        }
+                    }
+                }
+            },
+            upns: {
+                serializedName: "upns",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "String"
+                        }
+                    }
+                }
+            }
+        }
+    }
+};
+const LifetimeAction = {
+    type: {
+        name: "Composite",
+        className: "LifetimeAction",
+        modelProperties: {
+            trigger: {
+                serializedName: "trigger",
+                type: {
+                    name: "Composite",
+                    className: "Trigger"
+                }
+            },
+            action: {
+                serializedName: "action",
+                type: {
+                    name: "Composite",
+                    className: "Action"
+                }
+            }
+        }
+    }
+};
+const Trigger = {
+    type: {
+        name: "Composite",
+        className: "Trigger",
+        modelProperties: {
+            lifetimePercentage: {
+                constraints: {
+                    InclusiveMaximum: 99,
+                    InclusiveMinimum: 1
+                },
+                serializedName: "lifetime_percentage",
+                type: {
+                    name: "Number"
+                }
+            },
+            daysBeforeExpiry: {
+                serializedName: "days_before_expiry",
+                type: {
+                    name: "Number"
+                }
+            }
+        }
+    }
+};
+const Action = {
+    type: {
+        name: "Composite",
+        className: "Action",
+        modelProperties: {
+            actionType: {
+                serializedName: "action_type",
+                type: {
+                    name: "Enum",
+                    allowedValues: ["EmailContacts", "AutoRenew"]
+                }
+            }
+        }
+    }
+};
+const IssuerParameters = {
+    type: {
+        name: "Composite",
+        className: "IssuerParameters",
+        modelProperties: {
+            name: {
+                serializedName: "name",
+                type: {
+                    name: "String"
+                }
+            },
+            certificateType: {
+                serializedName: "cty",
+                type: {
+                    name: "String"
+                }
+            },
+            certificateTransparency: {
+                serializedName: "cert_transparency",
+                type: {
+                    name: "Boolean"
+                }
+            }
+        }
+    }
+};
+const Contacts = {
+    type: {
+        name: "Composite",
+        className: "Contacts",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            contactList: {
+                serializedName: "contacts",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "Contact"
+                        }
+                    }
+                }
+            }
+        }
+    }
+};
+const Contact = {
+    type: {
+        name: "Composite",
+        className: "Contact",
+        modelProperties: {
+            emailAddress: {
+                serializedName: "email",
+                type: {
+                    name: "String"
+                }
+            },
+            name: {
+                serializedName: "name",
+                type: {
+                    name: "String"
+                }
+            },
+            phone: {
+                serializedName: "phone",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const CertificateIssuerListResult = {
+    type: {
+        name: "Composite",
+        className: "CertificateIssuerListResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "CertificateIssuerItem"
+                        }
+                    }
+                }
+            },
+            nextLink: {
+                serializedName: "nextLink",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const CertificateIssuerItem = {
+    type: {
+        name: "Composite",
+        className: "CertificateIssuerItem",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                type: {
+                    name: "String"
+                }
+            },
+            provider: {
+                serializedName: "provider",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const CertificateIssuerSetParameters = {
+    type: {
+        name: "Composite",
+        className: "CertificateIssuerSetParameters",
+        modelProperties: {
+            provider: {
+                serializedName: "provider",
+                required: true,
+                type: {
+                    name: "String"
+                }
+            },
+            credentials: {
+                serializedName: "credentials",
+                type: {
+                    name: "Composite",
+                    className: "IssuerCredentials"
+                }
+            },
+            organizationDetails: {
+                serializedName: "org_details",
+                type: {
+                    name: "Composite",
+                    className: "OrganizationDetails"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "IssuerAttributes"
+                }
+            }
+        }
+    }
+};
+const IssuerCredentials = {
+    type: {
+        name: "Composite",
+        className: "IssuerCredentials",
+        modelProperties: {
+            accountId: {
+                serializedName: "account_id",
+                type: {
+                    name: "String"
+                }
+            },
+            password: {
+                serializedName: "pwd",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const OrganizationDetails = {
+    type: {
+        name: "Composite",
+        className: "OrganizationDetails",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                type: {
+                    name: "String"
+                }
+            },
+            adminDetails: {
+                serializedName: "admin_details",
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "AdministratorDetails"
+                        }
+                    }
+                }
+            }
+        }
+    }
+};
+const AdministratorDetails = {
+    type: {
+        name: "Composite",
+        className: "AdministratorDetails",
+        modelProperties: {
+            firstName: {
+                serializedName: "first_name",
+                type: {
+                    name: "String"
+                }
+            },
+            lastName: {
+                serializedName: "last_name",
+                type: {
+                    name: "String"
+                }
+            },
+            emailAddress: {
+                serializedName: "email",
+                type: {
+                    name: "String"
+                }
+            },
+            phone: {
+                serializedName: "phone",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const IssuerAttributes = {
+    type: {
+        name: "Composite",
+        className: "IssuerAttributes",
+        modelProperties: {
+            enabled: {
+                serializedName: "enabled",
+                type: {
+                    name: "Boolean"
+                }
+            },
+            created: {
+                serializedName: "created",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            },
+            updated: {
+                serializedName: "updated",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            }
+        }
+    }
+};
+const IssuerBundle = {
+    type: {
+        name: "Composite",
+        className: "IssuerBundle",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            provider: {
+                serializedName: "provider",
+                type: {
+                    name: "String"
+                }
+            },
+            credentials: {
+                serializedName: "credentials",
+                type: {
+                    name: "Composite",
+                    className: "IssuerCredentials"
+                }
+            },
+            organizationDetails: {
+                serializedName: "org_details",
+                type: {
+                    name: "Composite",
+                    className: "OrganizationDetails"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "IssuerAttributes"
+                }
+            }
+        }
+    }
+};
+const CertificateIssuerUpdateParameters = {
+    type: {
+        name: "Composite",
+        className: "CertificateIssuerUpdateParameters",
+        modelProperties: {
+            provider: {
+                serializedName: "provider",
+                type: {
+                    name: "String"
+                }
+            },
+            credentials: {
+                serializedName: "credentials",
+                type: {
+                    name: "Composite",
+                    className: "IssuerCredentials"
+                }
+            },
+            organizationDetails: {
+                serializedName: "org_details",
+                type: {
+                    name: "Composite",
+                    className: "OrganizationDetails"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "IssuerAttributes"
+                }
+            }
+        }
+    }
+};
+const CertificateCreateParameters = {
+    type: {
+        name: "Composite",
+        className: "CertificateCreateParameters",
+        modelProperties: {
+            certificatePolicy: {
+                serializedName: "policy",
+                type: {
+                    name: "Composite",
+                    className: "CertificatePolicy"
+                }
+            },
+            certificateAttributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "CertificateAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            }
+        }
+    }
+};
+const CertificateOperation = {
+    type: {
+        name: "Composite",
+        className: "CertificateOperation",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            issuerParameters: {
+                serializedName: "issuer",
+                type: {
+                    name: "Composite",
+                    className: "IssuerParameters"
+                }
+            },
+            csr: {
+                serializedName: "csr",
+                type: {
+                    name: "ByteArray"
+                }
+            },
+            cancellationRequested: {
+                serializedName: "cancellation_requested",
+                type: {
+                    name: "Boolean"
+                }
+            },
+            status: {
+                serializedName: "status",
+                type: {
+                    name: "String"
+                }
+            },
+            statusDetails: {
+                serializedName: "status_details",
+                type: {
+                    name: "String"
+                }
+            },
+            error: {
+                serializedName: "error",
+                type: {
+                    name: "Composite",
+                    className: "ErrorModel"
+                }
+            },
+            target: {
+                serializedName: "target",
+                type: {
+                    name: "String"
+                }
+            },
+            requestId: {
+                serializedName: "request_id",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const CertificateImportParameters = {
+    type: {
+        name: "Composite",
+        className: "CertificateImportParameters",
+        modelProperties: {
+            base64EncodedCertificate: {
+                serializedName: "value",
+                required: true,
+                type: {
+                    name: "String"
+                }
+            },
+            password: {
+                serializedName: "pwd",
+                type: {
+                    name: "String"
+                }
+            },
+            certificatePolicy: {
+                serializedName: "policy",
+                type: {
+                    name: "Composite",
+                    className: "CertificatePolicy"
+                }
+            },
+            certificateAttributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "CertificateAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            }
+        }
+    }
+};
+const CertificateUpdateParameters = {
+    type: {
+        name: "Composite",
+        className: "CertificateUpdateParameters",
+        modelProperties: {
+            certificatePolicy: {
+                serializedName: "policy",
+                type: {
+                    name: "Composite",
+                    className: "CertificatePolicy"
+                }
+            },
+            certificateAttributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "CertificateAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            }
+        }
+    }
+};
+const CertificateOperationUpdateParameter = {
+    type: {
+        name: "Composite",
+        className: "CertificateOperationUpdateParameter",
+        modelProperties: {
+            cancellationRequested: {
+                serializedName: "cancellation_requested",
+                required: true,
+                type: {
+                    name: "Boolean"
+                }
+            }
+        }
+    }
+};
+const CertificateMergeParameters = {
+    type: {
+        name: "Composite",
+        className: "CertificateMergeParameters",
+        modelProperties: {
+            x509Certificates: {
+                serializedName: "x5c",
+                required: true,
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "ByteArray"
+                        }
+                    }
+                }
+            },
+            certificateAttributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "CertificateAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            }
+        }
+    }
+};
+const BackupCertificateResult = {
+    type: {
+        name: "Composite",
+        className: "BackupCertificateResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "Base64Url"
+                }
+            }
+        }
+    }
+};
+const CertificateRestoreParameters = {
+    type: {
+        name: "Composite",
+        className: "CertificateRestoreParameters",
+        modelProperties: {
+            certificateBundleBackup: {
+                serializedName: "value",
+                required: true,
+                type: {
+                    name: "Base64Url"
+                }
+            }
+        }
+    }
+};
+const DeletedCertificateListResult = {
+    type: {
+        name: "Composite",
+        className: "DeletedCertificateListResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "DeletedCertificateItem"
+                        }
+                    }
+                }
+            },
+            nextLink: {
+                serializedName: "nextLink",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const PendingCertificateSigningRequestResult = {
+    type: {
+        name: "Composite",
+        className: "PendingCertificateSigningRequestResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const DeletedCertificateItem = {
+    type: {
+        name: "Composite",
+        className: "DeletedCertificateItem",
+        modelProperties: Object.assign(Object.assign({}, CertificateItem.type.modelProperties), { recoveryId: {
+                serializedName: "recoveryId",
+                type: {
+                    name: "String"
+                }
+            }, scheduledPurgeDate: {
+                serializedName: "scheduledPurgeDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            }, deletedDate: {
+                serializedName: "deletedDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            } })
+    }
+};
+const CertificateAttributes = {
+    type: {
+        name: "Composite",
+        className: "CertificateAttributes",
+        modelProperties: Object.assign(Object.assign({}, Attributes.type.modelProperties), { recoverableDays: {
+                serializedName: "recoverableDays",
+                readOnly: true,
+                type: {
+                    name: "Number"
+                }
+            }, recoveryLevel: {
+                serializedName: "recoveryLevel",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            } })
+    }
+};
+const DeletedCertificateBundle = {
+    type: {
+        name: "Composite",
+        className: "DeletedCertificateBundle",
+        modelProperties: Object.assign(Object.assign({}, CertificateBundle.type.modelProperties), { recoveryId: {
+                serializedName: "recoveryId",
+                type: {
+                    name: "String"
+                }
+            }, scheduledPurgeDate: {
+                serializedName: "scheduledPurgeDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            }, deletedDate: {
+                serializedName: "deletedDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            } })
+    }
+};
+
+var Mappers = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    CertificateListResult: CertificateListResult,
+    CertificateItem: CertificateItem,
+    Attributes: Attributes,
+    KeyVaultError: KeyVaultError,
+    ErrorModel: ErrorModel,
+    CertificateBundle: CertificateBundle,
+    CertificatePolicy: CertificatePolicy,
+    KeyProperties: KeyProperties,
+    SecretProperties: SecretProperties,
+    X509CertificateProperties: X509CertificateProperties,
+    SubjectAlternativeNames: SubjectAlternativeNames,
+    LifetimeAction: LifetimeAction,
+    Trigger: Trigger,
+    Action: Action,
+    IssuerParameters: IssuerParameters,
+    Contacts: Contacts,
+    Contact: Contact,
+    CertificateIssuerListResult: CertificateIssuerListResult,
+    CertificateIssuerItem: CertificateIssuerItem,
+    CertificateIssuerSetParameters: CertificateIssuerSetParameters,
+    IssuerCredentials: IssuerCredentials,
+    OrganizationDetails: OrganizationDetails,
+    AdministratorDetails: AdministratorDetails,
+    IssuerAttributes: IssuerAttributes,
+    IssuerBundle: IssuerBundle,
+    CertificateIssuerUpdateParameters: CertificateIssuerUpdateParameters,
+    CertificateCreateParameters: CertificateCreateParameters,
+    CertificateOperation: CertificateOperation,
+    CertificateImportParameters: CertificateImportParameters,
+    CertificateUpdateParameters: CertificateUpdateParameters,
+    CertificateOperationUpdateParameter: CertificateOperationUpdateParameter,
+    CertificateMergeParameters: CertificateMergeParameters,
+    BackupCertificateResult: BackupCertificateResult,
+    CertificateRestoreParameters: CertificateRestoreParameters,
+    DeletedCertificateListResult: DeletedCertificateListResult,
+    PendingCertificateSigningRequestResult: PendingCertificateSigningRequestResult,
+    DeletedCertificateItem: DeletedCertificateItem,
+    CertificateAttributes: CertificateAttributes,
+    DeletedCertificateBundle: DeletedCertificateBundle
+});
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+const accept = {
+    parameterPath: "accept",
+    mapper: {
+        defaultValue: "application/json",
+        isConstant: true,
+        serializedName: "Accept",
+        type: {
+            name: "String"
+        }
+    }
+};
+const vaultBaseUrl = {
+    parameterPath: "vaultBaseUrl",
+    mapper: {
+        serializedName: "vaultBaseUrl",
+        required: true,
+        type: {
+            name: "String"
+        }
+    },
+    skipEncoding: true
+};
+const maxresults = {
+    parameterPath: ["options", "maxresults"],
+    mapper: {
+        constraints: {
+            InclusiveMaximum: 25,
+            InclusiveMinimum: 1
+        },
+        serializedName: "maxresults",
+        type: {
+            name: "Number"
+        }
+    }
+};
+const includePending = {
+    parameterPath: ["options", "includePending"],
+    mapper: {
+        serializedName: "includePending",
+        type: {
+            name: "Boolean"
+        }
+    }
+};
+const apiVersion = {
+    parameterPath: "apiVersion",
+    mapper: {
+        serializedName: "api-version",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const certificateName = {
+    parameterPath: "certificateName",
+    mapper: {
+        serializedName: "certificate-name",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const contentType = {
+    parameterPath: ["options", "contentType"],
+    mapper: {
+        defaultValue: "application/json",
+        isConstant: true,
+        serializedName: "Content-Type",
+        type: {
+            name: "String"
+        }
+    }
+};
+const contacts = {
+    parameterPath: "contacts",
+    mapper: Contacts
+};
+const issuerName = {
+    parameterPath: "issuerName",
+    mapper: {
+        serializedName: "issuer-name",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const certificateName1 = {
+    parameterPath: "certificateName",
+    mapper: {
+        constraints: {
+            Pattern: new RegExp("^[0-9a-zA-Z-]+$")
+        },
+        serializedName: "certificate-name",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const certificatePolicy2 = {
+    parameterPath: "certificatePolicy",
+    mapper: CertificatePolicy
+};
+const certificateVersion = {
+    parameterPath: "certificateVersion",
+    mapper: {
+        serializedName: "certificate-version",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const nextLink = {
+    parameterPath: "nextLink",
+    mapper: {
+        serializedName: "nextLink",
+        required: true,
+        type: {
+            name: "String"
+        }
+    },
+    skipEncoding: true
+};
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+/** @internal */
+class KeyVaultClient extends coreHttpCompat__namespace.ExtendedServiceClient {
+    /**
+     * Initializes a new instance of the KeyVaultClient class.
+     * @param apiVersion Api Version
+     * @param options The parameter options
+     */
+    constructor(apiVersion, options) {
+        var _a, _b;
+        if (apiVersion === undefined) {
+            throw new Error("'apiVersion' cannot be null");
+        }
+        // Initializing default values for options
+        if (!options) {
+            options = {};
+        }
+        const defaults = {
+            requestContentType: "application/json; charset=utf-8"
+        };
+        const packageDetails = `azsdk-js-keyvault-certificates/4.7.0`;
+        const userAgentPrefix = options.userAgentOptions && options.userAgentOptions.userAgentPrefix
+            ? `${options.userAgentOptions.userAgentPrefix} ${packageDetails}`
+            : `${packageDetails}`;
+        const optionsWithDefaults = Object.assign(Object.assign(Object.assign({}, defaults), options), { userAgentOptions: {
+                userAgentPrefix
+            }, baseUri: (_b = (_a = options.endpoint) !== null && _a !== void 0 ? _a : options.baseUri) !== null && _b !== void 0 ? _b : "{vaultBaseUrl}" });
+        super(optionsWithDefaults);
+        // Parameter assignments
+        this.apiVersion = apiVersion;
+    }
+    /**
+     * The GetCertificates operation returns the set of certificates resources in the specified key vault.
+     * This operation requires the certificates/list permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param options The options parameters.
+     */
+    getCertificates(vaultBaseUrl, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, options }, getCertificatesOperationSpec);
+    }
+    /**
+     * Deletes all versions of a certificate object along with its associated policy. Delete certificate
+     * cannot be used to remove individual versions of a certificate object. This operation requires the
+     * certificates/delete permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param options The options parameters.
+     */
+    deleteCertificate(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, deleteCertificateOperationSpec);
+    }
+    /**
+     * Sets the certificate contacts for the specified key vault. This operation requires the
+     * certificates/managecontacts permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param contacts The contacts for the key vault certificate.
+     * @param options The options parameters.
+     */
+    setCertificateContacts(vaultBaseUrl, contacts, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, contacts, options }, setCertificateContactsOperationSpec);
+    }
+    /**
+     * The GetCertificateContacts operation returns the set of certificate contact resources in the
+     * specified key vault. This operation requires the certificates/managecontacts permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param options The options parameters.
+     */
+    getCertificateContacts(vaultBaseUrl, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, options }, getCertificateContactsOperationSpec);
+    }
+    /**
+     * Deletes the certificate contacts for a specified key vault certificate. This operation requires the
+     * certificates/managecontacts permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param options The options parameters.
+     */
+    deleteCertificateContacts(vaultBaseUrl, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, options }, deleteCertificateContactsOperationSpec);
+    }
+    /**
+     * The GetCertificateIssuers operation returns the set of certificate issuer resources in the specified
+     * key vault. This operation requires the certificates/manageissuers/getissuers permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param options The options parameters.
+     */
+    getCertificateIssuers(vaultBaseUrl, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, options }, getCertificateIssuersOperationSpec);
+    }
+    /**
+     * The SetCertificateIssuer operation adds or updates the specified certificate issuer. This operation
+     * requires the certificates/setissuers permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param issuerName The name of the issuer. The value you provide may be copied globally for the
+     *                   purpose of running the service. The value provided should not include personally identifiable or
+     *                   sensitive information.
+     * @param provider The issuer provider.
+     * @param options The options parameters.
+     */
+    setCertificateIssuer(vaultBaseUrl, issuerName, provider, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, issuerName, provider, options }, setCertificateIssuerOperationSpec);
+    }
+    /**
+     * The UpdateCertificateIssuer operation performs an update on the specified certificate issuer entity.
+     * This operation requires the certificates/setissuers permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param issuerName The name of the issuer.
+     * @param options The options parameters.
+     */
+    updateCertificateIssuer(vaultBaseUrl, issuerName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, issuerName, options }, updateCertificateIssuerOperationSpec);
+    }
+    /**
+     * The GetCertificateIssuer operation returns the specified certificate issuer resources in the
+     * specified key vault. This operation requires the certificates/manageissuers/getissuers permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param issuerName The name of the issuer.
+     * @param options The options parameters.
+     */
+    getCertificateIssuer(vaultBaseUrl, issuerName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, issuerName, options }, getCertificateIssuerOperationSpec);
+    }
+    /**
+     * The DeleteCertificateIssuer operation permanently removes the specified certificate issuer from the
+     * vault. This operation requires the certificates/manageissuers/deleteissuers permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param issuerName The name of the issuer.
+     * @param options The options parameters.
+     */
+    deleteCertificateIssuer(vaultBaseUrl, issuerName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, issuerName, options }, deleteCertificateIssuerOperationSpec);
+    }
+    /**
+     * If this is the first version, the certificate resource is created. This operation requires the
+     * certificates/create permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate. The value you provide may be copied globally for
+     *                        the purpose of running the service. The value provided should not include personally identifiable or
+     *                        sensitive information.
+     * @param options The options parameters.
+     */
+    createCertificate(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, createCertificateOperationSpec);
+    }
+    /**
+     * Imports an existing valid certificate, containing a private key, into Azure Key Vault. This
+     * operation requires the certificates/import permission. The certificate to be imported can be in
+     * either PFX or PEM format. If the certificate is in PEM format the PEM file must contain the key as
+     * well as x509 certificates. Key Vault will only accept a key in PKCS#8 format.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate. The value you provide may be copied globally for
+     *                        the purpose of running the service. The value provided should not include personally identifiable or
+     *                        sensitive information.
+     * @param base64EncodedCertificate Base64 encoded representation of the certificate object to import.
+     *                                 This certificate needs to contain the private key.
+     * @param options The options parameters.
+     */
+    importCertificate(vaultBaseUrl, certificateName, base64EncodedCertificate, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, base64EncodedCertificate, options }, importCertificateOperationSpec);
+    }
+    /**
+     * The GetCertificateVersions operation returns the versions of a certificate in the specified key
+     * vault. This operation requires the certificates/list permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param options The options parameters.
+     */
+    getCertificateVersions(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, getCertificateVersionsOperationSpec);
+    }
+    /**
+     * The GetCertificatePolicy operation returns the specified certificate policy resources in the
+     * specified key vault. This operation requires the certificates/get permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate in a given key vault.
+     * @param options The options parameters.
+     */
+    getCertificatePolicy(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, getCertificatePolicyOperationSpec);
+    }
+    /**
+     * Set specified members in the certificate policy. Leave others as null. This operation requires the
+     * certificates/update permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate in the given vault.
+     * @param certificatePolicy The policy for the certificate.
+     * @param options The options parameters.
+     */
+    updateCertificatePolicy(vaultBaseUrl, certificateName, certificatePolicy, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, certificatePolicy, options }, updateCertificatePolicyOperationSpec);
+    }
+    /**
+     * The UpdateCertificate operation applies the specified update on the given certificate; the only
+     * elements updated are the certificate's attributes. This operation requires the certificates/update
+     * permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate in the given key vault.
+     * @param certificateVersion The version of the certificate.
+     * @param options The options parameters.
+     */
+    updateCertificate(vaultBaseUrl, certificateName, certificateVersion, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, certificateVersion, options }, updateCertificateOperationSpec);
+    }
+    /**
+     * Gets information about a specific certificate. This operation requires the certificates/get
+     * permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate in the given vault.
+     * @param certificateVersion The version of the certificate. This URI fragment is optional. If not
+     *                           specified, the latest version of the certificate is returned.
+     * @param options The options parameters.
+     */
+    getCertificate(vaultBaseUrl, certificateName, certificateVersion, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, certificateVersion, options }, getCertificateOperationSpec);
+    }
+    /**
+     * Updates a certificate creation operation that is already in progress. This operation requires the
+     * certificates/update permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param cancellationRequested Indicates if cancellation was requested on the certificate operation.
+     * @param options The options parameters.
+     */
+    updateCertificateOperation(vaultBaseUrl, certificateName, cancellationRequested, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, cancellationRequested, options }, updateCertificateOperationOperationSpec);
+    }
+    /**
+     * Gets the creation operation associated with a specified certificate. This operation requires the
+     * certificates/get permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param options The options parameters.
+     */
+    getCertificateOperation(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, getCertificateOperationOperationSpec);
+    }
+    /**
+     * Deletes the creation operation for a specified certificate that is in the process of being created.
+     * The certificate is no longer created. This operation requires the certificates/update permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param options The options parameters.
+     */
+    deleteCertificateOperation(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, deleteCertificateOperationOperationSpec);
+    }
+    /**
+     * The MergeCertificate operation performs the merging of a certificate or certificate chain with a key
+     * pair currently available in the service. This operation requires the certificates/create permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param x509Certificates The certificate or the certificate chain to merge.
+     * @param options The options parameters.
+     */
+    mergeCertificate(vaultBaseUrl, certificateName, x509Certificates, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, x509Certificates, options }, mergeCertificateOperationSpec);
+    }
+    /**
+     * Requests that a backup of the specified certificate be downloaded to the client. All versions of the
+     * certificate will be downloaded. This operation requires the certificates/backup permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param options The options parameters.
+     */
+    backupCertificate(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, backupCertificateOperationSpec);
+    }
+    /**
+     * Restores a backed up certificate, and all its versions, to a vault. This operation requires the
+     * certificates/restore permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateBundleBackup The backup blob associated with a certificate bundle.
+     * @param options The options parameters.
+     */
+    restoreCertificate(vaultBaseUrl, certificateBundleBackup, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateBundleBackup, options }, restoreCertificateOperationSpec);
+    }
+    /**
+     * The GetDeletedCertificates operation retrieves the certificates in the current vault which are in a
+     * deleted state and ready for recovery or purging. This operation includes deletion-specific
+     * information. This operation requires the certificates/get/list permission. This operation can only
+     * be enabled on soft-delete enabled vaults.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param options The options parameters.
+     */
+    getDeletedCertificates(vaultBaseUrl, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, options }, getDeletedCertificatesOperationSpec);
+    }
+    /**
+     * The GetDeletedCertificate operation retrieves the deleted certificate information plus its
+     * attributes, such as retention interval, scheduled permanent deletion and the current deletion
+     * recovery level. This operation requires the certificates/get permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate
+     * @param options The options parameters.
+     */
+    getDeletedCertificate(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, getDeletedCertificateOperationSpec);
+    }
+    /**
+     * The PurgeDeletedCertificate operation performs an irreversible deletion of the specified
+     * certificate, without possibility for recovery. The operation is not available if the recovery level
+     * does not specify 'Purgeable'. This operation requires the certificate/purge permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate
+     * @param options The options parameters.
+     */
+    purgeDeletedCertificate(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, purgeDeletedCertificateOperationSpec);
+    }
+    /**
+     * The RecoverDeletedCertificate operation performs the reversal of the Delete operation. The operation
+     * is applicable in vaults enabled for soft-delete, and must be issued during the retention interval
+     * (available in the deleted certificate's attributes). This operation requires the
+     * certificates/recover permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the deleted certificate
+     * @param options The options parameters.
+     */
+    recoverDeletedCertificate(vaultBaseUrl, certificateName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, options }, recoverDeletedCertificateOperationSpec);
+    }
+    /**
+     * GetCertificatesNext
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param nextLink The nextLink from the previous successful call to the GetCertificates method.
+     * @param options The options parameters.
+     */
+    getCertificatesNext(vaultBaseUrl, nextLink, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, nextLink, options }, getCertificatesNextOperationSpec);
+    }
+    /**
+     * GetCertificateIssuersNext
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param nextLink The nextLink from the previous successful call to the GetCertificateIssuers method.
+     * @param options The options parameters.
+     */
+    getCertificateIssuersNext(vaultBaseUrl, nextLink, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, nextLink, options }, getCertificateIssuersNextOperationSpec);
+    }
+    /**
+     * GetCertificateVersionsNext
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param certificateName The name of the certificate.
+     * @param nextLink The nextLink from the previous successful call to the GetCertificateVersions method.
+     * @param options The options parameters.
+     */
+    getCertificateVersionsNext(vaultBaseUrl, certificateName, nextLink, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, certificateName, nextLink, options }, getCertificateVersionsNextOperationSpec);
+    }
+    /**
+     * GetDeletedCertificatesNext
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param nextLink The nextLink from the previous successful call to the GetDeletedCertificates method.
+     * @param options The options parameters.
+     */
+    getDeletedCertificatesNext(vaultBaseUrl, nextLink, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, nextLink, options }, getDeletedCertificatesNextOperationSpec);
+    }
+}
+// Operation Specifications
+const serializer = coreClient__namespace.createSerializer(Mappers, /* isXml */ false);
+const getCertificatesOperationSpec = {
+    path: "/certificates",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [
+        maxresults,
+        includePending,
+        apiVersion
+    ],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept],
+    serializer
+};
+const deleteCertificateOperationSpec = {
+    path: "/certificates/{certificate-name}",
+    httpMethod: "DELETE",
+    responses: {
+        200: {
+            bodyMapper: DeletedCertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const setCertificateContactsOperationSpec = {
+    path: "/certificates/contacts",
+    httpMethod: "PUT",
+    responses: {
+        200: {
+            bodyMapper: Contacts
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: contacts,
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const getCertificateContactsOperationSpec = {
+    path: "/certificates/contacts",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: Contacts
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept],
+    serializer
+};
+const deleteCertificateContactsOperationSpec = {
+    path: "/certificates/contacts",
+    httpMethod: "DELETE",
+    responses: {
+        200: {
+            bodyMapper: Contacts
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept],
+    serializer
+};
+const getCertificateIssuersOperationSpec = {
+    path: "/certificates/issuers",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateIssuerListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [maxresults, apiVersion],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept],
+    serializer
+};
+const setCertificateIssuerOperationSpec = {
+    path: "/certificates/issuers/{issuer-name}",
+    httpMethod: "PUT",
+    responses: {
+        200: {
+            bodyMapper: IssuerBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            provider: ["provider"],
+            credentials: ["options", "credentials"],
+            organizationDetails: ["options", "organizationDetails"],
+            attributes: ["options", "attributes"]
+        },
+        mapper: Object.assign(Object.assign({}, CertificateIssuerSetParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, issuerName],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const updateCertificateIssuerOperationSpec = {
+    path: "/certificates/issuers/{issuer-name}",
+    httpMethod: "PATCH",
+    responses: {
+        200: {
+            bodyMapper: IssuerBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            provider: ["options", "provider"],
+            credentials: ["options", "credentials"],
+            organizationDetails: ["options", "organizationDetails"],
+            attributes: ["options", "attributes"]
+        },
+        mapper: Object.assign(Object.assign({}, CertificateIssuerUpdateParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, issuerName],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const getCertificateIssuerOperationSpec = {
+    path: "/certificates/issuers/{issuer-name}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: IssuerBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, issuerName],
+    headerParameters: [accept],
+    serializer
+};
+const deleteCertificateIssuerOperationSpec = {
+    path: "/certificates/issuers/{issuer-name}",
+    httpMethod: "DELETE",
+    responses: {
+        200: {
+            bodyMapper: IssuerBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, issuerName],
+    headerParameters: [accept],
+    serializer
+};
+const createCertificateOperationSpec = {
+    path: "/certificates/{certificate-name}/create",
+    httpMethod: "POST",
+    responses: {
+        202: {
+            bodyMapper: CertificateOperation
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            certificatePolicy: ["options", "certificatePolicy"],
+            certificateAttributes: ["options", "certificateAttributes"],
+            tags: ["options", "tags"]
+        },
+        mapper: Object.assign(Object.assign({}, CertificateCreateParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName1],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const importCertificateOperationSpec = {
+    path: "/certificates/{certificate-name}/import",
+    httpMethod: "POST",
+    responses: {
+        200: {
+            bodyMapper: CertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            base64EncodedCertificate: ["base64EncodedCertificate"],
+            password: ["options", "password"],
+            certificatePolicy: ["options", "certificatePolicy"],
+            certificateAttributes: ["options", "certificateAttributes"],
+            tags: ["options", "tags"]
+        },
+        mapper: Object.assign(Object.assign({}, CertificateImportParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName1],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const getCertificateVersionsOperationSpec = {
+    path: "/certificates/{certificate-name}/versions",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [maxresults, apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const getCertificatePolicyOperationSpec = {
+    path: "/certificates/{certificate-name}/policy",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificatePolicy
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const updateCertificatePolicyOperationSpec = {
+    path: "/certificates/{certificate-name}/policy",
+    httpMethod: "PATCH",
+    responses: {
+        200: {
+            bodyMapper: CertificatePolicy
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: certificatePolicy2,
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const updateCertificateOperationSpec = {
+    path: "/certificates/{certificate-name}/{certificate-version}",
+    httpMethod: "PATCH",
+    responses: {
+        200: {
+            bodyMapper: CertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            certificatePolicy: ["options", "certificatePolicy"],
+            certificateAttributes: ["options", "certificateAttributes"],
+            tags: ["options", "tags"]
+        },
+        mapper: Object.assign(Object.assign({}, CertificateUpdateParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [
+        vaultBaseUrl,
+        certificateName,
+        certificateVersion
+    ],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const getCertificateOperationSpec = {
+    path: "/certificates/{certificate-name}/{certificate-version}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [
+        vaultBaseUrl,
+        certificateName,
+        certificateVersion
+    ],
+    headerParameters: [accept],
+    serializer
+};
+const updateCertificateOperationOperationSpec = {
+    path: "/certificates/{certificate-name}/pending",
+    httpMethod: "PATCH",
+    responses: {
+        200: {
+            bodyMapper: CertificateOperation
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: { cancellationRequested: ["cancellationRequested"] },
+        mapper: Object.assign(Object.assign({}, CertificateOperationUpdateParameter), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const getCertificateOperationOperationSpec = {
+    path: "/certificates/{certificate-name}/pending",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateOperation
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const deleteCertificateOperationOperationSpec = {
+    path: "/certificates/{certificate-name}/pending",
+    httpMethod: "DELETE",
+    responses: {
+        200: {
+            bodyMapper: CertificateOperation
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const mergeCertificateOperationSpec = {
+    path: "/certificates/{certificate-name}/pending/merge",
+    httpMethod: "POST",
+    responses: {
+        201: {
+            bodyMapper: CertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            x509Certificates: ["x509Certificates"],
+            certificateAttributes: ["options", "certificateAttributes"],
+            tags: ["options", "tags"]
+        },
+        mapper: Object.assign(Object.assign({}, CertificateMergeParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const backupCertificateOperationSpec = {
+    path: "/certificates/{certificate-name}/backup",
+    httpMethod: "POST",
+    responses: {
+        200: {
+            bodyMapper: BackupCertificateResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const restoreCertificateOperationSpec = {
+    path: "/certificates/restore",
+    httpMethod: "POST",
+    responses: {
+        200: {
+            bodyMapper: CertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: { certificateBundleBackup: ["certificateBundleBackup"] },
+        mapper: Object.assign(Object.assign({}, CertificateRestoreParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept, contentType],
+    mediaType: "json",
+    serializer
+};
+const getDeletedCertificatesOperationSpec = {
+    path: "/deletedcertificates",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: DeletedCertificateListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [
+        maxresults,
+        includePending,
+        apiVersion
+    ],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept],
+    serializer
+};
+const getDeletedCertificateOperationSpec = {
+    path: "/deletedcertificates/{certificate-name}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: DeletedCertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const purgeDeletedCertificateOperationSpec = {
+    path: "/deletedcertificates/{certificate-name}",
+    httpMethod: "DELETE",
+    responses: {
+        204: {},
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const recoverDeletedCertificateOperationSpec = {
+    path: "/deletedcertificates/{certificate-name}/recover",
+    httpMethod: "POST",
+    responses: {
+        200: {
+            bodyMapper: CertificateBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, certificateName],
+    headerParameters: [accept],
+    serializer
+};
+const getCertificatesNextOperationSpec = {
+    path: "{nextLink}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [
+        maxresults,
+        includePending,
+        apiVersion
+    ],
+    urlParameters: [vaultBaseUrl, nextLink],
+    headerParameters: [accept],
+    serializer
+};
+const getCertificateIssuersNextOperationSpec = {
+    path: "{nextLink}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateIssuerListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [maxresults, apiVersion],
+    urlParameters: [vaultBaseUrl, nextLink],
+    headerParameters: [accept],
+    serializer
+};
+const getCertificateVersionsNextOperationSpec = {
+    path: "{nextLink}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: CertificateListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [maxresults, apiVersion],
+    urlParameters: [
+        vaultBaseUrl,
+        certificateName,
+        nextLink
+    ],
+    headerParameters: [accept],
+    serializer
+};
+const getDeletedCertificatesNextOperationSpec = {
+    path: "{nextLink}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: DeletedCertificateListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [
+        maxresults,
+        includePending,
+        apiVersion
+    ],
+    urlParameters: [vaultBaseUrl, nextLink],
+    headerParameters: [accept],
+    serializer
+};
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Generates a version of the state with only public properties. At least those common for all of the Key Vault Certificates pollers.
+ */
+// eslint-disable-next-line no-use-before-define
+function cleanState(state) {
+    return {
+        certificateName: state.certificateName,
+        isStarted: state.isStarted,
+        isCancelled: state.isCancelled,
+        isCompleted: state.isCompleted,
+        error: state.error,
+        result: state.result,
+    };
+}
+/**
+ * Common properties and methods of the Key Vault Certificate Pollers.
+ */
+class KeyVaultCertificatePoller extends coreLro.Poller {
+    constructor() {
+        super(...arguments);
+        /**
+         * Defines how much time the poller is going to wait before making a new request to the service.
+         */
+        this.intervalInMs = 2000;
+    }
+    /**
+     * The method used by the poller to wait before attempting to update its operation.
+     */
+    async delay() {
+        return coreUtil.delay(this.intervalInMs);
+    }
+    /**
+     * Gets the public state of the polling operation
+     */
+    getOperationState() {
+        return cleanState(this.operation.state);
+    }
+}
+/**
+ * Common properties and methods of the Key Vault Certificate Poller operations.
+ */
+class KeyVaultCertificatePollOperation {
+    constructor(state, options = {}) {
+        this.state = state;
+        this.cancelMessage = "";
+        if (options.cancelMessage) {
+            this.cancelMessage = options.cancelMessage;
+        }
+    }
+    /**
+     * Meant to reach to the service and update the Poller operation.
+     */
+    async update() {
+        throw new Error("Operation not supported.");
+    }
+    /**
+     * Meant to reach to the service and cancel the Poller operation.
+     */
+    async cancel() {
+        throw new Error(this.cancelMessage);
+    }
+    /**
+     * Serializes the create certificate's poll operation
+     */
+    toString() {
+        return JSON.stringify({
+            state: cleanState(this.state),
+        });
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Parses the given Key Vault Certificate Id. An example is:
+ *
+ *   https://<keyvault-name>.vault.azure.net/certificates/<certificate-name>/<unique-version-id>
+ *
+ * On parsing the above Id, this function returns:
+ *```ts
+ *   {
+ *      sourceId: "https://<keyvault-name>.vault.azure.net/certificates/<certificate-name>/<unique-version-id>",
+ *      vaultUrl: "https://<keyvault-name>.vault.azure.net",
+ *      version: "<unique-version-id>",
+ *      name: "<certificate-name>"
+ *   }
+ *```
+ * @param id - The Id of the Key Vault Certificate.
+ */
+function parseKeyVaultCertificateIdentifier(id) {
+    const urlParts = id.split("/");
+    const collection = urlParts[3];
+    return Object.assign({ sourceId: id }, keyvaultCommon.parseKeyVaultIdentifier(collection, id));
+}
+
+// Copyright (c) Microsoft Corporation.
+function toCoreAttributes(properties) {
+    return {
+        recoveryLevel: properties.recoveryLevel,
+        enabled: properties.enabled,
+        notBefore: properties.notBefore,
+        expires: properties.expiresOn,
+        created: properties.createdOn,
+        updated: properties.updatedOn,
+    };
+}
+function toCorePolicy(id, policy, attributes = {}) {
+    let subjectAlternativeNames = {};
+    if (policy.subjectAlternativeNames) {
+        subjectAlternativeNames = {
+            emails: policy.subjectAlternativeNames.emails,
+            dnsNames: policy.subjectAlternativeNames.dnsNames,
+            upns: policy.subjectAlternativeNames.userPrincipalNames,
+        };
+    }
+    return {
+        id,
+        lifetimeActions: policy.lifetimeActions
+            ? policy.lifetimeActions.map((action) => ({
+                action: { actionType: action.action },
+                trigger: {
+                    lifetimePercentage: action.lifetimePercentage,
+                    daysBeforeExpiry: action.daysBeforeExpiry,
+                },
+            }))
+            : undefined,
+        keyProperties: {
+            keyType: policy.keyType,
+            keySize: policy.keySize,
+            reuseKey: policy.reuseKey,
+            curve: policy.keyCurveName,
+            exportable: policy.exportable,
+        },
+        secretProperties: {
+            contentType: policy.contentType,
+        },
+        x509CertificateProperties: {
+            subject: policy.subject,
+            ekus: policy.enhancedKeyUsage,
+            subjectAlternativeNames,
+            keyUsage: policy.keyUsage,
+            validityInMonths: policy.validityInMonths,
+        },
+        issuerParameters: {
+            name: policy.issuerName,
+            certificateType: policy.certificateType,
+            certificateTransparency: policy.certificateTransparency,
+        },
+        attributes,
+    };
+}
+function toPublicPolicy(policy = {}) {
+    let subjectAlternativeNames;
+    const x509Properties = policy.x509CertificateProperties || {};
+    if (policy.x509CertificateProperties) {
+        if (x509Properties.subjectAlternativeNames) {
+            const names = x509Properties.subjectAlternativeNames;
+            if (names.emails && names.emails.length) {
+                subjectAlternativeNames = Object.assign(Object.assign({}, subjectAlternativeNames), { emails: names.emails });
+            }
+            if (names.dnsNames && names.dnsNames.length) {
+                subjectAlternativeNames = Object.assign(Object.assign({}, subjectAlternativeNames), { dnsNames: names.dnsNames });
+            }
+            if (names.upns && names.upns.length) {
+                subjectAlternativeNames = Object.assign(Object.assign({}, subjectAlternativeNames), { userPrincipalNames: names.upns });
+            }
+        }
+    }
+    const certificatePolicy = {
+        lifetimeActions: policy.lifetimeActions
+            ? policy.lifetimeActions.map((action) => ({
+                action: action.action ? action.action.actionType : undefined,
+                daysBeforeExpiry: action.trigger ? action.trigger.daysBeforeExpiry : undefined,
+                lifetimePercentage: action.trigger ? action.trigger.lifetimePercentage : undefined,
+            }))
+            : undefined,
+        contentType: policy.secretProperties
+            ? policy.secretProperties.contentType
+            : undefined,
+        enhancedKeyUsage: x509Properties.ekus,
+        keyUsage: x509Properties.keyUsage,
+        validityInMonths: x509Properties.validityInMonths,
+        subject: x509Properties.subject,
+        subjectAlternativeNames: subjectAlternativeNames,
+    };
+    if (policy.attributes) {
+        certificatePolicy.enabled = policy.attributes.enabled;
+    }
+    if (policy.keyProperties) {
+        certificatePolicy.keyType = policy.keyProperties.keyType;
+        certificatePolicy.keySize = policy.keyProperties.keySize;
+        certificatePolicy.reuseKey = policy.keyProperties.reuseKey;
+        certificatePolicy.keyCurveName = policy.keyProperties.curve;
+        certificatePolicy.exportable = policy.keyProperties.exportable;
+    }
+    if (policy.issuerParameters) {
+        certificatePolicy.issuerName = policy.issuerParameters && policy.issuerParameters.name;
+        certificatePolicy.certificateType = policy.issuerParameters
+            .certificateType;
+        certificatePolicy.certificateTransparency = policy.issuerParameters.certificateTransparency;
+    }
+    return certificatePolicy;
+}
+function toPublicIssuer(issuer = {}) {
+    const parsedId = parseKeyVaultCertificateIdentifier(issuer.id);
+    const attributes = issuer.attributes || {};
+    const publicIssuer = {
+        id: issuer.id,
+        name: parsedId.name,
+        provider: issuer.provider,
+        accountId: issuer.credentials && issuer.credentials.accountId,
+        password: issuer.credentials && issuer.credentials.password,
+        enabled: attributes.enabled,
+        createdOn: attributes.created,
+        updatedOn: attributes.updated,
+    };
+    if (issuer.organizationDetails) {
+        publicIssuer.organizationId = issuer.organizationDetails.id;
+        publicIssuer.administratorContacts = issuer.organizationDetails.adminDetails
+            ? issuer.organizationDetails.adminDetails.map((x) => ({
+                email: x.emailAddress,
+                phone: x.phone,
+                firstName: x.firstName,
+                lastName: x.lastName,
+            }))
+            : undefined;
+    }
+    return publicIssuer;
+}
+function getCertificateFromCertificateBundle(certificateBundle) {
+    const parsedId = parseKeyVaultCertificateIdentifier(certificateBundle.id);
+    const attributes = certificateBundle.attributes || {};
+    const abstractProperties = {
+        createdOn: attributes.created,
+        updatedOn: attributes.updated,
+        expiresOn: attributes.expires,
+        id: certificateBundle.id,
+        enabled: attributes.enabled,
+        notBefore: attributes.notBefore,
+        recoveryLevel: attributes.recoveryLevel,
+        name: parsedId.name,
+        vaultUrl: parsedId.vaultUrl,
+        version: parsedId.version,
+        tags: certificateBundle.tags,
+        x509Thumbprint: certificateBundle.x509Thumbprint,
+        recoverableDays: attributes.recoverableDays,
+    };
+    return {
+        keyId: certificateBundle.kid,
+        secretId: certificateBundle.sid,
+        name: parsedId.name,
+        cer: certificateBundle.cer,
+        properties: abstractProperties,
+    };
+}
+function getCertificateWithPolicyFromCertificateBundle(certificateBundle) {
+    const parsedId = parseKeyVaultCertificateIdentifier(certificateBundle.id);
+    const attributes = certificateBundle.attributes || {};
+    const policy = toPublicPolicy(certificateBundle.policy || {});
+    const abstractProperties = {
+        createdOn: attributes.created,
+        updatedOn: attributes.updated,
+        expiresOn: attributes.expires,
+        id: certificateBundle.id,
+        enabled: attributes.enabled,
+        notBefore: attributes.notBefore,
+        recoveryLevel: attributes.recoveryLevel,
+        name: parsedId.name,
+        vaultUrl: parsedId.vaultUrl,
+        version: parsedId.version,
+        tags: certificateBundle.tags,
+        x509Thumbprint: certificateBundle.x509Thumbprint,
+        recoverableDays: attributes.recoverableDays,
+    };
+    return {
+        keyId: certificateBundle.kid,
+        secretId: certificateBundle.sid,
+        name: parsedId.name,
+        cer: certificateBundle.cer,
+        policy,
+        properties: abstractProperties,
+    };
+}
+function getDeletedCertificateFromDeletedCertificateBundle(certificateBundle) {
+    const certificate = getCertificateWithPolicyFromCertificateBundle(certificateBundle);
+    return {
+        policy: certificate.policy,
+        cer: certificate.cer,
+        id: certificate.id,
+        keyId: certificate.keyId,
+        secretId: certificate.secretId,
+        name: certificate.name,
+        properties: certificate.properties,
+        recoveryId: certificateBundle.recoveryId,
+        scheduledPurgeDate: certificateBundle.scheduledPurgeDate,
+        deletedOn: certificateBundle.deletedDate,
+    };
+}
+function getDeletedCertificateFromItem(item) {
+    var _a, _b;
+    const parsedId = parseKeyVaultCertificateIdentifier(item.id);
+    const attributes = item.attributes || {};
+    const abstractProperties = {
+        createdOn: attributes.created,
+        updatedOn: attributes.updated,
+        expiresOn: attributes.expires,
+        vaultUrl: parsedId.vaultUrl,
+        version: parsedId.version,
+        name: parsedId.name,
+        id: item.id,
+        tags: item.tags,
+        x509Thumbprint: item.x509Thumbprint,
+        recoverableDays: (_a = item.attributes) === null || _a === void 0 ? void 0 : _a.recoverableDays,
+        recoveryLevel: (_b = item.attributes) === null || _b === void 0 ? void 0 : _b.recoveryLevel,
+    };
+    return {
+        deletedOn: item.deletedDate,
+        recoveryId: item.recoveryId,
+        scheduledPurgeDate: item.scheduledPurgeDate,
+        name: parsedId.name,
+        properties: abstractProperties,
+    };
+}
+function getCertificateOperationErrorFromErrorModel(error) {
+    if (error) {
+        return {
+            code: error.code,
+            innerError: getCertificateOperationErrorFromErrorModel(error.innerError),
+            message: error.message,
+        };
+    }
+    return undefined;
+}
+function getCertificateOperationFromCoreOperation(certificateName, vaultUrl, operation) {
+    return {
+        cancellationRequested: operation.cancellationRequested,
+        name: certificateName,
+        issuerName: operation.issuerParameters ? operation.issuerParameters.name : undefined,
+        certificateTransparency: operation.issuerParameters
+            ? operation.issuerParameters.certificateTransparency
+            : undefined,
+        certificateType: operation.issuerParameters
+            ? operation.issuerParameters.certificateType
+            : undefined,
+        csr: operation.csr,
+        error: getCertificateOperationErrorFromErrorModel(operation.error),
+        id: operation.id,
+        requestId: operation.requestId,
+        status: operation.status,
+        statusDetails: operation.statusDetails,
+        target: operation.target,
+        vaultUrl: vaultUrl,
+    };
+}
+function coreContactsToCertificateContacts(contacts) {
+    return contacts.contactList
+        ? contacts.contactList.map((x) => ({ email: x.emailAddress, phone: x.phone, name: x.name }))
+        : [];
+}
+function getPropertiesFromCertificateBundle(certificateBundle) {
+    const parsedId = parseKeyVaultCertificateIdentifier(certificateBundle.id);
+    const attributes = certificateBundle.attributes || {};
+    const abstractProperties = {
+        createdOn: attributes.created,
+        updatedOn: attributes.updated,
+        expiresOn: attributes.expires,
+        id: certificateBundle.id,
+        name: parsedId.name,
+        enabled: attributes.enabled,
+        notBefore: attributes.notBefore,
+        recoveryLevel: attributes.recoveryLevel,
+        vaultUrl: parsedId.vaultUrl,
+        version: parsedId.version,
+        tags: certificateBundle.tags,
+        x509Thumbprint: certificateBundle.x509Thumbprint,
+        recoverableDays: attributes.recoverableDays,
+    };
+    return abstractProperties;
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+const SDK_VERSION = "4.7.0";
+
+// Copyright (c) Microsoft Corporation.
+const tracingClient = coreTracing.createTracingClient({
+    namespace: "Microsoft.KeyVault",
+    packageName: "@azure/keyvault-certificates",
+    packageVersion: SDK_VERSION,
+});
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * An interface representing a create certificate's poll operation
+ */
+class CreateCertificatePollOperation extends KeyVaultCertificatePollOperation {
+    constructor(state, vaultUrl, client, operationOptions = {}) {
+        super(state);
+        this.state = state;
+        this.vaultUrl = vaultUrl;
+        this.client = client;
+        this.operationOptions = operationOptions;
+    }
+    /**
+     * Creates a new certificate. If this is the first version, the certificate resource is created. This operation requires the certificates/create permission.
+     */
+    createCertificate(certificateName, certificatePolicy, options = {}) {
+        return tracingClient.withSpan("CreateCertificatePoller.createCertificate", options, async (updatedOptions) => {
+            const id = options.id;
+            const certificateAttributes = toCoreAttributes(options);
+            const corePolicy = toCorePolicy(id, certificatePolicy, certificateAttributes);
+            const result = await this.client.createCertificate(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { certificatePolicy: corePolicy, certificateAttributes }));
+            return getCertificateWithPolicyFromCertificateBundle(result);
+        });
+    }
+    /**
+     * Gets the latest information available from a specific certificate, including the certificate's policy. This operation requires the certificates/get permission.
+     */
+    getCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("CreateCertificatePoller.getCertificate", options, async (updatedOptions) => {
+            const result = await this.client.getCertificate(this.vaultUrl, certificateName, "", updatedOptions);
+            return getCertificateWithPolicyFromCertificateBundle(result);
+        });
+    }
+    /**
+     * Gets the certificate operation.
+     */
+    getPlainCertificateOperation(certificateName, options = {}) {
+        return tracingClient.withSpan("CreateCertificatePoller.getPlainCertificateOperation", options, async (updatedOptions) => {
+            let parsedBody;
+            await this.client.getCertificateOperation(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateOperationFromCoreOperation(certificateName, this.vaultUrl, parsedBody);
+        });
+    }
+    /**
+     * Cancels a certificate creation operation that is already in progress. This operation requires the certificates/update permission.
+     */
+    cancelCertificateOperation(certificateName, options = {}) {
+        return tracingClient.withSpan("CreateCertificatePoller.cancelCertificateOperation", options, async (updatedOptions) => {
+            let parsedBody;
+            await this.client.updateCertificateOperation(this.vaultUrl, certificateName, true, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateOperationFromCoreOperation(certificateName, this.vaultUrl, parsedBody);
+        });
+    }
+    /**
+     * Reaches to the service and updates the create certificate's poll operation.
+     */
+    async update(options = {}) {
+        const state = this.state;
+        const { certificateName, certificatePolicy, createCertificateOptions } = state;
+        if (options.abortSignal) {
+            this.operationOptions.abortSignal = options.abortSignal;
+            createCertificateOptions.abortSignal = options.abortSignal;
+        }
+        if (!state.isStarted) {
+            state.isStarted = true;
+            state.result = await this.createCertificate(certificateName, certificatePolicy, createCertificateOptions);
+            this.state.certificateOperation = await this.getPlainCertificateOperation(certificateName, this.operationOptions);
+        }
+        else if (!state.isCompleted) {
+            this.state.certificateOperation = await this.getPlainCertificateOperation(certificateName, this.operationOptions);
+        }
+        if (state.certificateOperation && state.certificateOperation.status !== "inProgress") {
+            state.isCompleted = true;
+            state.result = await this.getCertificate(certificateName, this.operationOptions);
+            if (state.certificateOperation.error) {
+                state.error = new Error(state.certificateOperation.error.message);
+            }
+        }
+        return this;
+    }
+    /**
+     * Reaches to the service and cancels the certificate's operation, also updating the certificate's poll operation
+     */
+    async cancel(options = {}) {
+        const state = this.state;
+        const { certificateName } = state;
+        if (options.abortSignal) {
+            this.operationOptions.abortSignal = options.abortSignal;
+        }
+        state.certificateOperation = await this.cancelCertificateOperation(certificateName, this.operationOptions);
+        this.state.isCancelled = true;
+        return this;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Class that deletes a poller that waits until a certificate finishes being deleted
+ */
+class CreateCertificatePoller extends KeyVaultCertificatePoller {
+    constructor(options) {
+        const { vaultUrl, client, certificateName, certificatePolicy, createCertificateOptions, operationOptions, intervalInMs = 2000, resumeFrom, } = options;
+        let state;
+        if (resumeFrom) {
+            state = JSON.parse(resumeFrom).state;
+        }
+        const operation = new CreateCertificatePollOperation(Object.assign(Object.assign({}, state), { certificateName,
+            certificatePolicy,
+            createCertificateOptions }), vaultUrl, client, operationOptions);
+        super(operation);
+        this.intervalInMs = intervalInMs;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * An interface representing the active operation of a certificate's creation,
+ * which is represented locally as the "operation" of an active LRO Poller.
+ */
+class CertificateOperationPollOperation extends KeyVaultCertificatePollOperation {
+    constructor(state, vaultUrl, client, operationOptions = {}) {
+        super(state);
+        this.state = state;
+        this.vaultUrl = vaultUrl;
+        this.client = client;
+        this.operationOptions = operationOptions;
+    }
+    /**
+     * Cancels a certificate creation operation that is already in progress. This operation requires the certificates/update permission.
+     */
+    cancelCertificateOperation(certificateName, options = {}) {
+        return tracingClient.withSpan("CertificateOperationPoller.cancelCertificateOperation", options, async (updatedOptions) => {
+            let parsedBody;
+            await this.client.updateCertificateOperation(this.vaultUrl, certificateName, true, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateOperationFromCoreOperation(certificateName, this.vaultUrl, parsedBody);
+        });
+    }
+    /**
+     * Gets the latest information available from a specific certificate, including the certificate's policy. This operation requires the certificates/get permission.
+     */
+    getCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("CertificateOperationPoller.getCertificate", options, async (updatedOptions) => {
+            const result = await this.client.getCertificate(this.vaultUrl, certificateName, "", updatedOptions);
+            return getCertificateWithPolicyFromCertificateBundle(result);
+        });
+    }
+    /**
+     * Gets the certificate operation.
+     */
+    getPlainCertificateOperation(certificateName, options = {}) {
+        return tracingClient.withSpan("CertificateOperationPoller.getPlainCertificateOperation", options, async (updatedOptions) => {
+            let parsedBody;
+            await this.client.getCertificateOperation(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateOperationFromCoreOperation(certificateName, this.vaultUrl, parsedBody);
+        });
+    }
+    /**
+     * Reaches to the service and updates the poll operation.
+     */
+    async update(options = {}) {
+        const state = this.state;
+        const certificateName = state.certificateName;
+        if (options.abortSignal) {
+            this.operationOptions.abortSignal = options.abortSignal;
+        }
+        if (!state.isStarted) {
+            state.isStarted = true;
+            state.result = await this.getCertificate(certificateName, this.operationOptions);
+            state.certificateOperation = await this.getPlainCertificateOperation(certificateName, this.operationOptions);
+        }
+        else if (!state.isCompleted) {
+            state.certificateOperation = await this.getPlainCertificateOperation(certificateName, this.operationOptions);
+        }
+        if (state.certificateOperation && state.certificateOperation.status !== "inProgress") {
+            state.isCompleted = true;
+            state.result = await this.getCertificate(certificateName, this.operationOptions);
+            if (state.certificateOperation.error) {
+                state.error = new Error(state.certificateOperation.error.message);
+            }
+        }
+        return this;
+    }
+    /**
+     * Reaches to the service and cancels the certificate's operation, also updating the poll operation.
+     */
+    async cancel(options = {}) {
+        const state = this.state;
+        const certificateName = state.certificateName;
+        if (options.abortSignal) {
+            this.operationOptions.abortSignal = options.abortSignal;
+        }
+        state.certificateOperation = await this.cancelCertificateOperation(certificateName, this.operationOptions);
+        this.state.isCancelled = true;
+        return this;
+    }
+    /**
+     * Serializes the certificate's poll operation
+     */
+    toString() {
+        const state = Object.assign({ certificateOperation: this.state.certificateOperation }, cleanState(this.state));
+        return JSON.stringify({
+            state,
+        });
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Class that creates a poller that waits until a certificate finishes being created
+ */
+class CertificateOperationPoller extends KeyVaultCertificatePoller {
+    constructor(options) {
+        const { vaultUrl, client, certificateName, operationOptions, intervalInMs = 2000, resumeFrom, } = options;
+        let state;
+        if (resumeFrom) {
+            state = JSON.parse(resumeFrom).state;
+        }
+        const operation = new CertificateOperationPollOperation(Object.assign(Object.assign({}, state), { certificateName }), vaultUrl, client, operationOptions);
+        super(operation);
+        this.intervalInMs = intervalInMs;
+    }
+    /**
+     * Gets the public state of the polling operation
+     */
+    getOperationState() {
+        return Object.assign(Object.assign({}, cleanState(this.operation.state)), { certificateOperation: this.operation.state.certificateOperation });
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * An interface representing a delete certificate's poll operation
+ */
+class DeleteCertificatePollOperation extends KeyVaultCertificatePollOperation {
+    constructor(state, vaultUrl, client, operationOptions = {}) {
+        super(state, { cancelMessage: "Canceling the deletion of a certificate is not supported." });
+        this.state = state;
+        this.vaultUrl = vaultUrl;
+        this.client = client;
+        this.operationOptions = operationOptions;
+    }
+    /**
+     * The DELETE operation applies to any certificate stored in Azure Key Vault. DELETE cannot be applied
+     * to an individual version of a certificate. This operation requires the certificates/delete permission.
+     */
+    deleteCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("DeleteCertificatePoller.deleteCertificate", options, async (updatedOptions) => {
+            const response = await this.client.deleteCertificate(this.vaultUrl, certificateName, updatedOptions);
+            return getDeletedCertificateFromDeletedCertificateBundle(response);
+        });
+    }
+    /**
+     * Retrieves the deleted certificate information plus its attributes, such as retention interval, scheduled permanent deletion and the
+     * current deletion recovery level. This operation requires the certificates/get permission.
+     */
+    async getDeletedCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("DeleteCertificatePoller.getDeletedCertificate", options, async (updatedOptions) => {
+            let parsedBody;
+            await this.client.getDeletedCertificate(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getDeletedCertificateFromDeletedCertificateBundle(parsedBody);
+        });
+    }
+    /**
+     * Reaches to the service and updates the delete certificate's poll operation.
+     */
+    async update(options = {}) {
+        const state = this.state;
+        const { certificateName } = state;
+        if (options.abortSignal) {
+            this.operationOptions.abortSignal = options.abortSignal;
+        }
+        if (!state.isStarted) {
+            const deletedCertificate = await this.deleteCertificate(certificateName, this.operationOptions);
+            state.isStarted = true;
+            state.result = deletedCertificate;
+            if (!deletedCertificate.recoveryId) {
+                state.isCompleted = true;
+            }
+        }
+        if (!state.isCompleted) {
+            try {
+                state.result = await this.getDeletedCertificate(certificateName, this.operationOptions);
+                state.isCompleted = true;
+            }
+            catch (error) {
+                if (error.statusCode === 403) {
+                    // At this point, the resource exists but the user doesn't have access to it.
+                    state.isCompleted = true;
+                }
+                else if (error.statusCode !== 404) {
+                    state.error = error;
+                    state.isCompleted = true;
+                    throw error;
+                }
+            }
+        }
+        return this;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Class that deletes a poller that waits until a certificate finishes being deleted
+ * @internal
+ */
+class DeleteCertificatePoller extends KeyVaultCertificatePoller {
+    constructor(options) {
+        const { vaultUrl, client, certificateName, operationOptions, intervalInMs = 2000, resumeFrom, } = options;
+        let state;
+        if (resumeFrom) {
+            state = JSON.parse(resumeFrom).state;
+        }
+        const operation = new DeleteCertificatePollOperation(Object.assign(Object.assign({}, state), { certificateName }), vaultUrl, client, operationOptions);
+        super(operation);
+        this.intervalInMs = intervalInMs;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * An interface representing the recovery of a deleted certificate's poll operation
+ */
+class RecoverDeletedCertificatePollOperation extends KeyVaultCertificatePollOperation {
+    constructor(state, vaultUrl, client, operationOptions = {}) {
+        super(state, {
+            cancelMessage: "Canceling the recovery of a deleted certificate is not supported.",
+        });
+        this.state = state;
+        this.vaultUrl = vaultUrl;
+        this.client = client;
+        this.operationOptions = operationOptions;
+    }
+    /**
+     * Gets the latest information available from a specific certificate, including the certificate's policy. This operation requires the certificates/get permission.
+     */
+    getCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("RecoverDeletedCertificatePoller.getCertificate", options, async (updatedOptions) => {
+            const result = await this.client.getCertificate(this.vaultUrl, certificateName, "", updatedOptions);
+            return getCertificateWithPolicyFromCertificateBundle(result);
+        });
+    }
+    /**
+     * Recovers the deleted certificate in the specified vault. This operation can only be performed on a soft-delete enabled vault. This operation
+     * requires the certificate/recover permission.
+     */
+    recoverDeletedCertificate(certificateName, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("RecoverDeletedCertificatePoller.recoverDeletedCertificate", options, async (updatedOptions) => {
+            await this.client.recoverDeletedCertificate(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateWithPolicyFromCertificateBundle(parsedBody);
+        });
+    }
+    /**
+     * Reaches to the service and updates the poll operation.
+     */
+    async update(options = {}) {
+        const state = this.state;
+        const { certificateName } = state;
+        if (options.abortSignal) {
+            this.operationOptions.abortSignal = options.abortSignal;
+        }
+        if (!state.isStarted) {
+            try {
+                state.result = await this.getCertificate(certificateName, this.operationOptions);
+                state.isCompleted = true;
+            }
+            catch (e) {
+                // getCertificate will only work once the LRO is completed.
+            }
+            if (!state.isCompleted) {
+                state.result = await this.recoverDeletedCertificate(certificateName, this.operationOptions);
+                state.isStarted = true;
+            }
+        }
+        if (!state.isCompleted) {
+            try {
+                state.result = await this.getCertificate(certificateName, this.operationOptions);
+                state.isCompleted = true;
+            }
+            catch (error) {
+                if (error.statusCode === 403) {
+                    // At this point, the resource exists but the user doesn't have access to it.
+                    state.isCompleted = true;
+                }
+                else if (error.statusCode !== 404) {
+                    state.error = error;
+                    state.isCompleted = true;
+                    throw error;
+                }
+            }
+        }
+        return this;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Class that creates a poller that waits until a deleted certificate is fully recovered.
+ */
+class RecoverDeletedCertificatePoller extends KeyVaultCertificatePoller {
+    constructor(options) {
+        const { vaultUrl, client, certificateName, operationOptions, intervalInMs = 2000, resumeFrom, } = options;
+        let state;
+        if (resumeFrom) {
+            state = JSON.parse(resumeFrom).state;
+        }
+        const operation = new RecoverDeletedCertificatePollOperation(Object.assign(Object.assign({}, state), { certificateName }), vaultUrl, client, operationOptions);
+        super(operation);
+        this.intervalInMs = intervalInMs;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Decodes a Uint8Array into a Base64 string.
+ * @internal
+ */
+function toBase64(bytes) {
+    if (coreUtil.isNode) {
+        return Buffer.from(bytes).toString("base64");
+    }
+    else {
+        return btoa(String.fromCharCode.apply(null, bytes));
+    }
+}
+/**
+ * Decodes a Uint8Array into an ASCII string.
+ * @internal
+ */
+function toAscii(bytes) {
+    if (coreUtil.isNode) {
+        return Buffer.from(bytes).toString("ascii");
+    }
+    else {
+        return new TextDecoder("ascii").decode(bytes);
+    }
+}
+/**
+ * Parses the PFX or ASCII PEM formatted value of the certificate containing both the X.509 certificates and the private key
+ * into a Base64 encoded string.
+ *
+ * @internal
+ * @param certificateBytes - The PFX or ASCII PEM formatted value of the certificate containing both the X.509 certificates and the private key
+ * @param contentType - "application/x-pem-file", "application/x-pkcs12" or undefined
+ */
+function parseCertificateBytes(certificateBytes, contentType) {
+    if (contentType === "application/x-pem-file") {
+        // PEM files have the certificate bytes already Base64 formatted.
+        return toAscii(certificateBytes);
+    }
+    else {
+        return toBase64(certificateBytes);
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * The client to interact with the KeyVault certificates functionality
+ */
+class CertificateClient {
+    /**
+     * Creates an instance of CertificateClient.
+     * @param vaultUrl - the base URL to the vault. You should validate that this URL references a valid Key Vault resource. See https://aka.ms/azsdk/blog/vault-uri for details.
+     * @param credential - An object that implements the `TokenCredential` interface used to authenticate requests to the service. Use the \@azure/identity package to create a credential that suits your needs.
+     * @param clientOptions - Pipeline options used to configure Key Vault API requests.
+     *                          Omit this parameter to use the default pipeline configuration.
+     */
+    constructor(vaultUrl, credential, clientOptions = {}) {
+        this.vaultUrl = vaultUrl;
+        const authPolicy = coreRestPipeline.bearerTokenAuthenticationPolicy({
+            credential,
+            scopes: [],
+            challengeCallbacks: keyvaultCommon.createKeyVaultChallengeCallbacks(clientOptions),
+        });
+        const internalClientPipelineOptions = Object.assign(Object.assign({}, clientOptions), { loggingOptions: {
+                logger: logger.info,
+                additionalAllowedHeaderNames: [
+                    "x-ms-keyvault-region",
+                    "x-ms-keyvault-network-info",
+                    "x-ms-keyvault-service-version",
+                ],
+            } });
+        this.client = new KeyVaultClient(clientOptions.serviceVersion || LATEST_API_VERSION, internalClientPipelineOptions);
+        this.client.pipeline.addPolicy(authPolicy);
+    }
+    listPropertiesOfCertificatesPage(continuationState, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfCertificatesPage_1() {
+            if (continuationState.continuationToken == null) {
+                const optionsComplete = Object.assign({ maxresults: continuationState.maxPageSize, includePending: options.includePending }, options);
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listPropertiesOfCertificatesPage", optionsComplete, (updatedOptions) => this.client.getCertificates(this.vaultUrl, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map(getPropertiesFromCertificateBundle, this));
+                }
+            }
+            while (continuationState.continuationToken) {
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listPropertiesOfCertificatesPage", options, (updatedOptions) => this.client.getCertificatesNext(this.vaultUrl, continuationState.continuationToken, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map(getPropertiesFromCertificateBundle, this));
+                }
+                else {
+                    break;
+                }
+            }
+        });
+    }
+    listPropertiesOfCertificatesAll(options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfCertificatesAll_1() {
+            var e_1, _a;
+            const f = {};
+            try {
+                for (var _b = tslib.__asyncValues(this.listPropertiesOfCertificatesPage(f, options)), _c; _c = yield tslib.__await(_b.next()), !_c.done;) {
+                    const page = _c.value;
+                    for (const certificate of page) {
+                        yield yield tslib.__await(certificate);
+                    }
+                }
+            }
+            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) yield tslib.__await(_a.call(_b));
+                }
+                finally { if (e_1) throw e_1.error; }
+            }
+        });
+    }
+    /**
+     * Iterates the latest version of all certificates in the vault.  The full certificate identifier and attributes are provided
+     * in the response. No values are returned for the certificates. This operations requires the certificates/list permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * // All in one call
+     * for await (const certificateProperties of client.listPropertiesOfCertificates()) {
+     *   console.log(certificateProperties);
+     * }
+     * // By pages
+     * for await (const page of client.listPropertiesOfCertificates().byPage()) {
+     *   for (const certificateProperties of page) {
+     *     console.log(certificateProperties);
+     *   }
+     * }
+     * ```
+     * List all versions of the specified certificate.
+     * @param options - The optional parameters
+     */
+    listPropertiesOfCertificates(options = {}) {
+        const iter = this.listPropertiesOfCertificatesAll(options);
+        const result = {
+            next() {
+                return iter.next();
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            byPage: (settings = {}) => this.listPropertiesOfCertificatesPage(settings, options),
+        };
+        return result;
+    }
+    listPropertiesOfCertificateVersionsPage(certificateName, continuationState, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfCertificateVersionsPage_1() {
+            if (continuationState.continuationToken == null) {
+                const optionsComplete = Object.assign({ maxresults: continuationState.maxPageSize }, options);
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listPropertiesOfCertificateVersionsPage", optionsComplete, (updatedOptions) => this.client.getCertificateVersions(this.vaultUrl, certificateName, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map(getPropertiesFromCertificateBundle, this));
+                }
+            }
+            while (continuationState.continuationToken) {
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listPropertiesOfCertificateVersionsPage", options, (updatedOptions) => this.client.getCertificateVersions(continuationState.continuationToken, certificateName, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map(getPropertiesFromCertificateBundle, this));
+                }
+                else {
+                    break;
+                }
+            }
+        });
+    }
+    listPropertiesOfCertificateVersionsAll(certificateName, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfCertificateVersionsAll_1() {
+            var e_2, _a;
+            const f = {};
+            try {
+                for (var _b = tslib.__asyncValues(this.listPropertiesOfCertificateVersionsPage(certificateName, f, options)), _c; _c = yield tslib.__await(_b.next()), !_c.done;) {
+                    const page = _c.value;
+                    for (const item of page) {
+                        yield yield tslib.__await(item);
+                    }
+                }
+            }
+            catch (e_2_1) { e_2 = { error: e_2_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) yield tslib.__await(_a.call(_b));
+                }
+                finally { if (e_2) throw e_2.error; }
+            }
+        });
+    }
+    /**
+     * Returns the versions of a certificate in the specified key
+     * vault. This operation requires the certificates/list permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * for await (const certificateProperties of client.listPropertiesOfCertificateVersions("MyCertificate")) {
+     *   console.log(certificateProperties.version!);
+     * }
+     * ```
+     * List the versions of a certificate.
+     * @param certificateName - The name of the certificate.
+     * @param options - The optional parameters
+     */
+    listPropertiesOfCertificateVersions(certificateName, options = {}) {
+        const iter = this.listPropertiesOfCertificateVersionsAll(certificateName, options);
+        const result = {
+            next() {
+                return iter.next();
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            byPage: (settings = {}) => this.listPropertiesOfCertificateVersionsPage(certificateName, settings, options),
+        };
+        return result;
+    }
+    /**
+     * The DELETE operation applies to any certificate stored in Azure Key Vault. DELETE cannot be applied
+     * to an individual version of a certificate.
+     * This function returns a Long Running Operation poller that allows you to wait indefinitely until the certificate is fully recovered.
+     *
+     * This operation requires the certificates/delete permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * const createPoller = await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     * await createPoller.pollUntilDone();
+     *
+     * const deletePoller = await client.beginDeleteCertificate("MyCertificate");
+     *
+     * // Serializing the poller
+     * const serialized = deletePoller.toString();
+     *
+     * // A new poller can be created with:
+     * // const newPoller = await client.beginDeleteCertificate("MyCertificate", { resumeFrom: serialized });
+     *
+     * // Waiting until it's done
+     * const deletedCertificate = await deletePoller.pollUntilDone();
+     * console.log(deletedCertificate);
+     * ```
+     * Deletes a certificate from a specified key vault.
+     * @param certificateName - The name of the certificate.
+     * @param options - The optional parameters
+     */
+    async beginDeleteCertificate(certificateName, options = {}) {
+        const poller = new DeleteCertificatePoller(Object.assign(Object.assign({ certificateName, client: this.client, vaultUrl: this.vaultUrl }, options), { operationOptions: options }));
+        // This will initialize the poller's operation (the deletion of the secret).
+        await poller.poll();
+        return poller;
+    }
+    /**
+     * Deletes all of the certificate contacts. This operation requires the certificates/managecontacts permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new CertificateClient(url, credentials);
+     * await client.setContacts([{
+     *   email: "b@b.com",
+     *   name: "b",
+     *   phone: "222222222222"
+     * }]);
+     * await client.deleteContacts();
+     * ```
+     * Deletes all of the certificate contacts
+     * @param options - The optional parameters
+     */
+    deleteContacts(options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.deleteContacts", options, async (updatedOptions) => {
+            await this.client.deleteCertificateContacts(this.vaultUrl, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return coreContactsToCertificateContacts(parsedBody);
+        });
+    }
+    /**
+     * Sets the certificate contacts for the key vault. This operation requires the certificates/managecontacts permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new CertificateClient(url, credentials);
+     * await client.setContacts([{
+     *   email: "b@b.com",
+     *   name: "b",
+     *   phone: "222222222222"
+     * }]);
+     * ```
+     * Sets the certificate contacts.
+     * @param contacts - The contacts to use
+     * @param options - The optional parameters
+     */
+    setContacts(contacts, options = {}) {
+        const coreContacts = contacts.map((x) => ({
+            emailAddress: x ? x.email : undefined,
+            name: x ? x.name : undefined,
+            phone: x ? x.phone : undefined,
+        }));
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.setContacts", options, async (updatedOptions) => {
+            await this.client.setCertificateContacts(this.vaultUrl, { contactList: coreContacts }, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return coreContactsToCertificateContacts(parsedBody);
+        });
+    }
+    /**
+     * Returns the set of certificate contact resources in the specified key vault. This operation requires the certificates/managecontacts permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new CertificateClient(url, credentials);
+     * await client.setContacts([{
+     *   email: "b@b.com",
+     *   name: "b",
+     *   phone: "222222222222"
+     * }]);
+     * const contacts = await client.getContacts();
+     * console.log(contacts);
+     * ```
+     * Sets the certificate contacts.
+     * @param options - The optional parameters
+     */
+    getContacts(options = {}) {
+        return tracingClient.withSpan("CertificateClient.getContacts", options, async (updatedOptions) => {
+            const result = await this.client.getCertificateContacts(this.vaultUrl, updatedOptions);
+            return coreContactsToCertificateContacts(result);
+        });
+    }
+    listPropertiesOfIssuersPage(continuationState, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfIssuersPage_1() {
+            if (continuationState.continuationToken == null) {
+                const requestOptionsComplete = Object.assign({ maxresults: continuationState.maxPageSize }, options);
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listPropertiesOfIssuersPage", requestOptionsComplete, (updatedOptions) => this.client.getCertificateIssuers(this.vaultUrl, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value);
+                }
+            }
+            while (continuationState.continuationToken) {
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listPropertiesOfIssuersPage", options, (updatedOptions) => this.client.getCertificateIssuers(continuationState.continuationToken, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value);
+                }
+                else {
+                    break;
+                }
+            }
+        });
+    }
+    listPropertiesOfIssuersAll(options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfIssuersAll_1() {
+            var e_3, _a;
+            const f = {};
+            try {
+                for (var _b = tslib.__asyncValues(this.listPropertiesOfIssuersPage(f, options)), _c; _c = yield tslib.__await(_b.next()), !_c.done;) {
+                    const page = _c.value;
+                    for (const item of page) {
+                        yield yield tslib.__await(item);
+                    }
+                }
+            }
+            catch (e_3_1) { e_3 = { error: e_3_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) yield tslib.__await(_a.call(_b));
+                }
+                finally { if (e_3) throw e_3.error; }
+            }
+        });
+    }
+    /**
+     * Returns the set of certificate issuer resources in the specified key vault. This operation requires the certificates/manageissuers/getissuers permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.createIssuer("IssuerName", "Test");
+     * // All in one call
+     * for await (const issuerProperties of client.listPropertiesOfIssuers()) {
+     *   console.log(issuerProperties);
+     * }
+     * // By pages
+     * for await (const page of client.listPropertiesOfIssuers().byPage()) {
+     *   for (const issuerProperties of page) {
+     *     console.log(issuerProperties);
+     *   }
+     * }
+     * ```
+     * List the certificate issuers.
+     * @param options - The optional parameters
+     */
+    listPropertiesOfIssuers(options = {}) {
+        const iter = this.listPropertiesOfIssuersAll(options);
+        const result = {
+            next() {
+                return iter.next();
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            byPage: (settings = {}) => this.listPropertiesOfIssuersPage(settings, options),
+        };
+        return result;
+    }
+    /**
+     * The createIssuer operation adds or updates the specified certificate issuer. This
+     * operation requires the certificates/setissuers permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.createIssuer("IssuerName", "Test");
+     * ```
+     * Sets the specified certificate issuer.
+     * @param issuerName - The name of the issuer.
+     * @param provider - The issuer provider.
+     * @param options - The optional parameters
+     */
+    createIssuer(issuerName, provider, options = {}) {
+        return tracingClient.withSpan("CertificateClient.createIssuer", options, async (updatedOptions) => {
+            const { accountId, password } = updatedOptions;
+            const generatedOptions = Object.assign(Object.assign({}, updatedOptions), { credentials: {
+                    accountId,
+                    password,
+                } });
+            if (updatedOptions.organizationId ||
+                (updatedOptions.administratorContacts && updatedOptions.administratorContacts.length)) {
+                generatedOptions.organizationDetails = {
+                    id: updatedOptions.organizationId,
+                    adminDetails: updatedOptions.administratorContacts
+                        ? updatedOptions.administratorContacts.map((x) => ({
+                            emailAddress: x.email,
+                            phone: x.phone,
+                            firstName: x.firstName,
+                            lastName: x.lastName,
+                        }))
+                        : undefined,
+                };
+            }
+            if (updatedOptions.enabled !== undefined) {
+                generatedOptions.attributes = {
+                    enabled: updatedOptions.enabled,
+                };
+            }
+            let parsedBody;
+            await this.client.setCertificateIssuer(this.vaultUrl, issuerName, provider, Object.assign(Object.assign({}, generatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return toPublicIssuer(parsedBody);
+        });
+    }
+    /**
+     * The updateIssuer operation performs an update on the specified certificate issuer
+     * entity. This operation requires the certificates/setissuers permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.createIssuer("IssuerName", "Test");
+     * await client.updateIssuer("IssuerName", {
+     *   provider: "Provider2"
+     * });
+     * ```
+     * Updates the specified certificate issuer.
+     * @param issuerName - The name of the issuer.
+     * @param options - The optional parameters
+     */
+    async updateIssuer(issuerName, options = {}) {
+        return tracingClient.withSpan("CertificateClient.updateIssuer", options, async (updatedOptions) => {
+            const { accountId, password } = options;
+            const generatedOptions = Object.assign(Object.assign({}, updatedOptions), { credentials: {
+                    accountId,
+                    password,
+                } });
+            if (updatedOptions.organizationId ||
+                (updatedOptions.administratorContacts && updatedOptions.administratorContacts.length)) {
+                generatedOptions.organizationDetails = {
+                    id: updatedOptions.organizationId,
+                    adminDetails: updatedOptions.administratorContacts
+                        ? updatedOptions.administratorContacts.map((x) => ({
+                            emailAddress: x.email,
+                            phone: x.phone,
+                            firstName: x.firstName,
+                            lastName: x.lastName,
+                        }))
+                        : undefined,
+                };
+            }
+            if (updatedOptions.enabled) {
+                generatedOptions.attributes = {
+                    enabled: updatedOptions.enabled,
+                };
+            }
+            let parsedBody;
+            await this.client.updateCertificateIssuer(this.vaultUrl, issuerName, Object.assign(Object.assign({}, generatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return toPublicIssuer(parsedBody);
+        });
+    }
+    /**
+     * The getIssuer operation returns the specified certificate issuer resources in the
+     * specified key vault. This operation requires the certificates/manageissuers/getissuers
+     * permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.createIssuer("IssuerName", "Test");
+     * const certificateIssuer = await client.getIssuer("IssuerName");
+     * console.log(certificateIssuer);
+     * ```
+     * Gets he specified certificate issuer.
+     * @param issuerName - The name of the issuer.
+     * @param options - The optional parameters
+     */
+    getIssuer(issuerName, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.getIssuer", options, async (updatedOptions) => {
+            await this.client.getCertificateIssuer(this.vaultUrl, issuerName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return toPublicIssuer(parsedBody);
+        });
+    }
+    /**
+     * The deleteIssuer operation permanently removes the specified certificate issuer from
+     * the vault. This operation requires the certificates/manageissuers/deleteissuers permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.createIssuer("IssuerName", "Provider");
+     * await client.deleteIssuer("IssuerName");
+     * ```
+     * Deletes the specified certificate issuer.
+     * @param issuerName - The name of the issuer.
+     * @param options - The optional parameters
+     */
+    deleteIssuer(issuerName, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.deleteIssuer", options, async (updatedOptions) => {
+            await this.client.deleteCertificateIssuer(this.vaultUrl, issuerName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return toPublicIssuer(parsedBody);
+        });
+    }
+    /**
+     * Creates a new certificate. If this is the first version, the certificate resource is created.
+     * This function returns a Long Running Operation poller that allows you to wait indefinitely until the certificate is fully recovered.
+     *
+     * **Note:** Sending `Self` as the `issuerName` of the certificate's policy will create a self-signed certificate.
+     *
+     * This operation requires the certificates/create permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * const certificatePolicy = {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * };
+     * const createPoller = await client.beginCreateCertificate("MyCertificate", certificatePolicy);
+     *
+     * // The pending certificate can be obtained by calling the following method:
+     * const pendingCertificate = createPoller.getResult();
+     *
+     * // Serializing the poller
+     * const serialized = createPoller.toString();
+     *
+     * // A new poller can be created with:
+     * // const newPoller = await client.beginCreateCertificate("MyCertificate", certificatePolicy, { resumeFrom: serialized });
+     *
+     * // Waiting until it's done
+     * const certificate = await createPoller.pollUntilDone();
+     * console.log(certificate);
+     * ```
+     * Creates a certificate
+     * @param certificateName - The name of the certificate
+     * @param certificatePolicy - The certificate's policy
+     * @param options - Optional parameters
+     */
+    async beginCreateCertificate(certificateName, policy, options = {}) {
+        const poller = new CreateCertificatePoller({
+            vaultUrl: this.vaultUrl,
+            client: this.client,
+            certificateName,
+            certificatePolicy: policy,
+            createCertificateOptions: options,
+            operationOptions: options,
+            intervalInMs: options.intervalInMs,
+            resumeFrom: options.resumeFrom,
+        });
+        // This will initialize the poller's operation (the creation of the secret).
+        await poller.poll();
+        return poller;
+    }
+    /**
+     * Gets the latest information available from a specific certificate, including the certificate's policy. This operation requires the certificates/get permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * const poller = await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     * await poller.pollUntilDone();
+     * const certificate = await client.getCertificate("MyCertificate");
+     * console.log(certificate);
+     * ```
+     * Retrieves a certificate from the certificate's name (includes the certificate policy)
+     * @param certificateName - The name of the certificate
+     * @param options - The optional parameters
+     */
+    getCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("CertificateClient.getCertificate", options, async (updatedOptions) => {
+            const result = await this.client.getCertificate(this.vaultUrl, certificateName, "", updatedOptions);
+            return getCertificateWithPolicyFromCertificateBundle(result);
+        });
+    }
+    /**
+     * Gets information about a specific certificate on a specific version. It won't return the certificate's policy. This operation requires the certificates/get permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * const poller = await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     * await poller.pollUntilDone();
+     * const certificateWithPolicy = await client.getCertificate("MyCertificate");
+     * const certificate = await client.getCertificateVersion("MyCertificate", certificateWithPolicy.properties.version!);
+     * console.log(certificate);
+     * ```
+     * Retrieves a certificate from the certificate's name and a specified version
+     * @param certificateName - The name of the certificate
+     * @param version - The specific version of the certificate
+     * @param options - The optional parameters
+     */
+    getCertificateVersion(certificateName, version, options = {}) {
+        return tracingClient.withSpan("CertificateClient.getCertificateVersion", options, async (updatedOptions) => {
+            if (!version) {
+                throw new Error("The 'version' cannot be empty.");
+            }
+            const result = await this.client.getCertificate(this.vaultUrl, certificateName, version, updatedOptions);
+            return getCertificateFromCertificateBundle(result);
+        });
+    }
+    /**
+     * Imports an existing valid certificate, containing a private key, into Azure Key Vault. The certificate to be imported can be in either PFX or PEM format.
+     * If the certificate is in PEM format the PEM file must contain the key as well as x509 certificates. This operation requires the certificates/import permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * // See: @azure/keyvault-secrets
+     * const certificateSecret = await secretClient.getSecret("MyCertificate");
+     * const base64EncodedCertificate = certificateSecret.value!;
+     * let buffer: Uint8Array;
+     *
+     * if (isNode) {
+     *   buffer = Buffer.from(base64EncodedCertificate, "base64");
+     * } else {
+     *   buffer = Uint8Array.from(atob(base64EncodedCertificate), (c) => c.charCodeAt(0));
+     * }
+     *
+     * await client.importCertificate("MyCertificate", buffer);
+     * ```
+     * Imports a certificate from a certificate's secret value
+     * @param certificateName - The name of the certificate
+     * @param certificateBytes - The PFX or ASCII PEM formatted value of the certificate containing both the X.509 certificates and the private key
+     * @param options - The optional parameters
+     */
+    importCertificate(certificateName, certificateBytes, options = {}) {
+        return tracingClient.withSpan("CertificateClient.importCertificate", options, async (updatedOptions) => {
+            var _a;
+            const base64EncodedCertificate = parseCertificateBytes(certificateBytes, (_a = updatedOptions.policy) === null || _a === void 0 ? void 0 : _a.contentType);
+            const result = await this.client.importCertificate(this.vaultUrl, certificateName, base64EncodedCertificate, updatedOptions);
+            return getCertificateWithPolicyFromCertificateBundle(result);
+        });
+    }
+    /**
+     * The getCertificatePolicy operation returns the specified certificate policy resources in the specified key vault. This operation requires the certificates/get permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     * const policy = await client.getCertificatePolicy("MyCertificate");
+     * console.log(policy);
+     * ```
+     * Gets a certificate's policy
+     * @param certificateName - The name of the certificate
+     * @param options - The optional parameters
+     */
+    getCertificatePolicy(certificateName, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.getCertificatePolicy", options, async (updatedOptions) => {
+            await this.client.getCertificatePolicy(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (res) => {
+                    parsedBody = res.parsedBody;
+                } }));
+            return toPublicPolicy(parsedBody);
+        });
+    }
+    /**
+     * Updates the certificate policy for the specified certificate. This operation requires the certificates/update permission.
+     * Gets a certificate's policy
+     * @param certificateName - The name of the certificate
+     * @param policy - The certificate policy
+     * @param options - The optional parameters
+     */
+    updateCertificatePolicy(certificateName, policy, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.updateCertificatePolicy", options, async (updatedOptions) => {
+            const corePolicy = toCorePolicy(undefined, policy);
+            await this.client.updateCertificatePolicy(this.vaultUrl, certificateName, corePolicy, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return toPublicPolicy(parsedBody);
+        });
+    }
+    /**
+     * Applies the specified update on the given certificate; the only elements updated are the
+     * certificate's attributes. This operation requires the certificates/update permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     *
+     * // You may pass an empty string for version which will update
+     * // the latest version of the certificate
+     * await client.updateCertificateProperties("MyCertificate", "", {
+     *   tags: {
+     *     customTag: "value"
+     *   }
+     * });
+     * ```
+     * Updates a certificate
+     * @param certificateName - The name of the certificate
+     * @param version - The version of the certificate to update (an empty string will update the latest version)
+     * @param options - The options, including what to update
+     */
+    updateCertificateProperties(certificateName, version, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.updateCertificateProperties", options, async (updatedOptions) => {
+            await this.client.updateCertificate(this.vaultUrl, certificateName, version, Object.assign(Object.assign({}, updatedOptions), { certificateAttributes: toCoreAttributes(options), onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateFromCertificateBundle(parsedBody);
+        });
+    }
+    /**
+     * Gets the creation operation associated with a specified certificate. This operation requires the certificates/get permission.
+     * This function returns a Long Running Operation poller that allows you to wait indefinitely until the certificate is fully recovered.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * const createPoller = await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     *
+     * const poller = await client.getCertificateOperation("MyCertificate");
+     * const pendingCertificate = poller.getResult();
+     *
+     * const certificateOperation = poller.getOperationState().certificateOperation;
+     * console.log(certificateOperation);
+     * ```
+     * Gets a certificate's poller operation
+     * @param certificateName - The name of the certificate
+     * @param options - The optional parameters
+     */
+    async getCertificateOperation(certificateName, options = {}) {
+        const poller = new CertificateOperationPoller({
+            certificateName,
+            client: this.client,
+            vaultUrl: this.vaultUrl,
+            intervalInMs: options.intervalInMs,
+            resumeFrom: options.resumeFrom,
+            operationOptions: options,
+        });
+        // This will initialize the poller's operation, which pre-populates some necessary properties.
+        await poller.poll();
+        return poller;
+    }
+    /**
+     * Deletes the creation operation for a specified certificate that is in the process of being created.
+     * The certificate is no longer created. This operation requires the certificates/update permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     * await client.deleteCertificateOperation("MyCertificate");
+     * await client.getCertificateOperation("MyCertificate"); // Throws error: Pending certificate not found: "MyCertificate"
+     * ```
+     * Delete a certificate's operation
+     * @param certificateName - The name of the certificate
+     * @param options - The optional parameters
+     */
+    deleteCertificateOperation(certificateName, options = {}) {
+        return tracingClient.withSpan("CertificateClient.deleteCertificateOperation", options, async (updatedOptions) => {
+            let parsedBody;
+            await this.client.deleteCertificateOperation(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateOperationFromCoreOperation(certificateName, this.vaultUrl, parsedBody);
+        });
+    }
+    /**
+     * Performs the merging of a certificate or certificate chain with a key pair currently available in the service. This operation requires the certificates/create permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Unknown",
+     *   subject: "cn=MyCert"
+     * });
+     * const poller = await client.getCertificateOperation("MyCertificate");
+     * const { csr } = poller.getOperationState().certificateOperation!;
+     * const base64Csr = Buffer.from(csr!).toString("base64");
+     * const wrappedCsr = ["-----BEGIN CERTIFICATE REQUEST-----", base64Csr, "-----END CERTIFICATE REQUEST-----"].join("\n");
+     *
+     * const fs = require("fs");
+     * fs.writeFileSync("test.csr", wrappedCsr);
+     *
+     * // Certificate available locally made using:
+     * //   openssl genrsa -out ca.key 2048
+     * //   openssl req -new -x509 -key ca.key -out ca.crt
+     * // You can read more about how to create a fake certificate authority here: https://gist.github.com/Soarez/9688998
+     *
+     * const childProcess = require("child_process");
+     * childProcess.execSync("openssl x509 -req -in test.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out test.crt");
+     * const base64Crt = fs.readFileSync("test.crt").toString().split("\n").slice(1, -1).join("");
+     *
+     * await client.mergeCertificate("MyCertificate", [Buffer.from(base64Crt)]);
+     * ```
+     * Merges a signed certificate request into a pending certificate
+     * @param certificateName - The name of the certificate
+     * @param x509Certificates - The certificate(s) to merge
+     * @param options - The optional parameters
+     */
+    mergeCertificate(certificateName, x509Certificates, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.mergeCertificate", options, async (updatedOptions) => {
+            await this.client.mergeCertificate(this.vaultUrl, certificateName, x509Certificates, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateWithPolicyFromCertificateBundle(parsedBody);
+        });
+    }
+    /**
+     * Requests that a backup of the specified certificate be downloaded to the client. All versions of the certificate will be downloaded.
+     * This operation requires the certificates/backup permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     * const backup = await client.backupCertificate("MyCertificate");
+     * ```
+     * Generates a backup of a certificate
+     * @param certificateName - The name of the certificate
+     * @param options - The optional parameters
+     */
+    backupCertificate(certificateName, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.backupCertificate", options, async (updatedOptions) => {
+            await this.client.backupCertificate(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return parsedBody.value;
+        });
+    }
+    /**
+     * Restores a backed up certificate, and all its versions, to a vault. This operation requires the certificates/restore permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * await client.beginCreateCertificate("MyCertificate", {
+     *   issuerName: "Self",
+     *   subject: "cn=MyCert"
+     * });
+     * const backup = await client.backupCertificate("MyCertificate");
+     * const poller = await client.beginDeleteCertificate("MyCertificate");
+     * await poller.pollUntilDone();
+     * // Some time is required before we're able to restore the certificate
+     * await client.restoreCertificateBackup(backup!);
+     * ```
+     * Restores a certificate from a backup
+     * @param backup - The back-up certificate to restore from
+     * @param options - The optional parameters
+     */
+    restoreCertificateBackup(backup, options = {}) {
+        let parsedBody;
+        return tracingClient.withSpan("CertificateClient.restoreCertificateBackup", options, async (updatedOptions) => {
+            await this.client.restoreCertificate(this.vaultUrl, backup, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getCertificateWithPolicyFromCertificateBundle(parsedBody);
+        });
+    }
+    listDeletedCertificatesPage(continuationState, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listDeletedCertificatesPage_1() {
+            if (continuationState.continuationToken == null) {
+                const requestOptionsComplete = Object.assign({ maxresults: continuationState.maxPageSize, includePending: options.includePending }, options);
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listDeletedCertificatesPage", requestOptionsComplete, (updatedOptions) => this.client.getDeletedCertificates(this.vaultUrl, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map(getDeletedCertificateFromItem, this));
+                }
+            }
+            while (continuationState.continuationToken) {
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("CertificateClient.listDeletedCertificatesPage", options, (updatedOptions) => this.client.getDeletedCertificatesNext(this.vaultUrl, continuationState.continuationToken, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map(getDeletedCertificateFromItem, this));
+                }
+                else {
+                    break;
+                }
+            }
+        });
+    }
+    listDeletedCertificatesAll(options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listDeletedCertificatesAll_1() {
+            var e_4, _a;
+            const f = {};
+            try {
+                for (var _b = tslib.__asyncValues(this.listDeletedCertificatesPage(f, options)), _c; _c = yield tslib.__await(_b.next()), !_c.done;) {
+                    const page = _c.value;
+                    for (const item of page) {
+                        yield yield tslib.__await(item);
+                    }
+                }
+            }
+            catch (e_4_1) { e_4 = { error: e_4_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) yield tslib.__await(_a.call(_b));
+                }
+                finally { if (e_4) throw e_4.error; }
+            }
+        });
+    }
+    /**
+     * Retrieves the certificates in the current vault which are in a deleted state and ready for recovery or purging. This operation includes deletion-specific
+     * information. This operation requires the certificates/get/list permission. This operation can only be enabled on soft-delete enabled vaults.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * for await (const deletedCertificate of client.listDeletedCertificates()) {
+     *   console.log(deletedCertificate);
+     * }
+     * for await (const page of client.listDeletedCertificates().byPage()) {
+     *   for (const deletedCertificate of page) {
+     *     console.log(deletedCertificate);
+     *   }
+     * }
+     * ```
+     * Lists deleted certificates
+     * @param options - The optional parameters
+     */
+    listDeletedCertificates(options = {}) {
+        const iter = this.listDeletedCertificatesAll(options);
+        const result = {
+            next() {
+                return iter.next();
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            byPage: (settings = {}) => this.listDeletedCertificatesPage(settings, options),
+        };
+        return result;
+    }
+    /**
+     * retrieves the deleted certificate information plus its attributes, such as retention interval, scheduled permanent deletion and the
+     * current deletion recovery level. This operation requires the certificates/get permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * const deletedCertificate = await client.getDeletedCertificate("MyDeletedCertificate");
+     * console.log("Deleted certificate:", deletedCertificate);
+     * ```
+     * Gets a deleted certificate
+     * @param certificateName - The name of the certificate
+     * @param options - The optional parameters
+     */
+    getDeletedCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("CertificateClient.getDeletedCertificate", options, async (updatedOptions) => {
+            let parsedBody;
+            await this.client.getDeletedCertificate(this.vaultUrl, certificateName, Object.assign(Object.assign({}, updatedOptions), { onResponse: (response) => {
+                    parsedBody = response.parsedBody;
+                } }));
+            return getDeletedCertificateFromDeletedCertificateBundle(parsedBody);
+        });
+    }
+    /**
+     * Performs an irreversible deletion of the specified certificate, without possibility for recovery. The operation is not available if the
+     * recovery level does not specify 'Purgeable'. This operation requires the certificate/purge permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     * const deletePoller = await client.beginDeleteCertificate("MyCertificate");
+     * await deletePoller.pollUntilDone();
+     * // Deleting a certificate takes time, make sure to wait before purging it
+     * client.purgeDeletedCertificate("MyCertificate");
+     * ```
+     * Gets a deleted certificate
+     * @param certificateName - The name of the deleted certificate to purge
+     * @param options - The optional parameters
+     */
+    async purgeDeletedCertificate(certificateName, options = {}) {
+        return tracingClient.withSpan("CertificateClient.purgeDeletedCertificate", options, async (updatedOptions) => {
+            await this.client.purgeDeletedCertificate(this.vaultUrl, certificateName, updatedOptions);
+            return null;
+        });
+    }
+    /**
+     * Recovers the deleted certificate in the specified vault. This operation can only be performed on a soft-delete enabled vault. This operation
+     * This function returns a Long Running Operation poller that allows you to wait indefinitely until the certificate is fully recovered.
+     *
+     * This operation requires the certificates/recover permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new CertificateClient(url, credentials);
+     *
+     * const deletePoller = await client.beginDeleteCertificate("MyCertificate");
+     * await deletePoller.pollUntilDone();
+     *
+     * const recoverPoller = await client.beginRecoverDeletedCertificate("MyCertificate");
+     *
+     * // Serializing the poller
+     * const serialized = deletePoller.toString();
+     *
+     * // A new poller can be created with:
+     * // const newPoller = await client.beginRecoverDeletedCertificate("MyCertificate", { resumeFrom: serialized });
+     *
+     * // Waiting until it's done
+     * const certificate = await recoverPoller.pollUntilDone();
+     * console.log(certificate);
+     * ```
+     * Recovers a deleted certificate
+     * @param certificateName - The name of the deleted certificate
+     * @param options - The optional parameters
+     */
+    async beginRecoverDeletedCertificate(certificateName, options = {}) {
+        const poller = new RecoverDeletedCertificatePoller(Object.assign(Object.assign({ certificateName, client: this.client, vaultUrl: this.vaultUrl }, options), { operationOptions: options }));
+        // This will initialize the poller's operation (the recovery of the deleted secret).
+        await poller.poll();
+        return poller;
+    }
+}
+
+exports.CertificateClient = CertificateClient;
+exports.DefaultCertificatePolicy = DefaultCertificatePolicy;
+exports.logger = logger;
+exports.parseKeyVaultCertificateIdentifier = parseKeyVaultCertificateIdentifier;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 3139:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+const validWWWAuthenticateProperties = [
+    "authorization",
+    "authorization_url",
+    "resource",
+    "scope",
+    "tenantId",
+];
+/**
+ * Parses an WWW-Authenticate response header.
+ * This transforms a string value like:
+ * `Bearer authorization="https://some.url/tenantId", resource="https://some.url"`
+ * into an object like:
+ * `{ authorization: "https://some.url/tenantId", resource: "https://some.url" }`
+ * @param headerValue - String value in the WWW-Authenticate header
+ */
+function parseWWWAuthenticateHeader(headerValue) {
+    const pairDelimiter = /,? +/;
+    const parsed = headerValue.split(pairDelimiter).reduce((kvPairs, p) => {
+        if (p.match(/\w="/)) {
+            // 'sampleKey="sample_value"' -> [sampleKey, "sample_value"] -> { sampleKey: sample_value }
+            const [key, value] = p.split("=");
+            if (validWWWAuthenticateProperties.includes(key)) {
+                // The values will be wrapped in quotes, which need to be stripped out.
+                return Object.assign(Object.assign({}, kvPairs), { [key]: value.slice(1, -1) });
+            }
+        }
+        return kvPairs;
+    }, {});
+    // Finally, we pull the tenantId from the authorization header to support multi-tenant authentication.
+    if (parsed.authorization) {
+        try {
+            const tenantId = new URL(parsed.authorization).pathname.substring(1);
+            if (tenantId) {
+                parsed.tenantId = tenantId;
+            }
+        }
+        catch (_) {
+            throw new Error(`The challenge authorization URI '${parsed.authorization}' is invalid.`);
+        }
+    }
+    return parsed;
+}
+
+// Copyright (c) Microsoft Corporation.
+function verifyChallengeResource(scope, request) {
+    let scopeAsUrl;
+    try {
+        scopeAsUrl = new URL(scope);
+    }
+    catch (e) {
+        throw new Error(`The challenge contains invalid scope '${scope}'`);
+    }
+    const requestUrl = new URL(request.url);
+    if (!requestUrl.hostname.endsWith(`.${scopeAsUrl.hostname}`)) {
+        throw new Error(`The challenge resource '${scopeAsUrl.hostname}' does not match the requested domain. Set disableChallengeResourceVerification to true in your client options to disable. See https://aka.ms/azsdk/blog/vault-uri for more information.`);
+    }
+}
+/**
+ * Creates challenge callback handlers to manage CAE lifecycle in Azure Key Vault.
+ *
+ * Key Vault supports other authentication schemes, but we ensure challenge authentication
+ * is used by first sending a copy of the request, without authorization or content.
+ *
+ * when the challenge is received, it will be authenticated and used to send the original
+ * request with authorization.
+ *
+ * Following the first request of a client, follow-up requests will get the cached token
+ * if possible.
+ *
+ */
+function createKeyVaultChallengeCallbacks(options = {}) {
+    const { disableChallengeResourceVerification } = options;
+    let challengeState = { status: "none" };
+    function requestToOptions(request) {
+        return {
+            abortSignal: request.abortSignal,
+            requestOptions: {
+                timeout: request.timeout > 0 ? request.timeout : undefined,
+            },
+            tracingOptions: request.tracingOptions,
+        };
+    }
+    async function authorizeRequest({ request, getAccessToken, }) {
+        const requestOptions = requestToOptions(request);
+        switch (challengeState.status) {
+            case "none":
+                challengeState = {
+                    status: "started",
+                    originalBody: request.body,
+                };
+                request.body = null;
+                break;
+            case "started":
+                break; // Retry, we should not overwrite the original body
+            case "complete": {
+                const token = await getAccessToken(challengeState.scopes, requestOptions);
+                if (token) {
+                    request.headers.set("authorization", `Bearer ${token.token}`);
+                }
+                break;
+            }
+        }
+        return Promise.resolve();
+    }
+    async function authorizeRequestOnChallenge({ request, response, getAccessToken, }) {
+        if (request.body === null && challengeState.status === "started") {
+            // Reset the original body before doing anything else.
+            // Note: If successful status will be "complete", otherwise "none" will
+            // restart the process.
+            request.body = challengeState.originalBody;
+        }
+        const getTokenOptions = requestToOptions(request);
+        const challenge = response.headers.get("WWW-Authenticate");
+        if (!challenge) {
+            throw new Error("Missing challenge.");
+        }
+        const parsedChallenge = parseWWWAuthenticateHeader(challenge) || {};
+        const scope = parsedChallenge.resource
+            ? parsedChallenge.resource + "/.default"
+            : parsedChallenge.scope;
+        if (!scope) {
+            throw new Error("Missing scope.");
+        }
+        if (!disableChallengeResourceVerification) {
+            verifyChallengeResource(scope, request);
+        }
+        const accessToken = await getAccessToken([scope], Object.assign(Object.assign({}, getTokenOptions), { tenantId: parsedChallenge.tenantId }));
+        if (!accessToken) {
+            return false;
+        }
+        request.headers.set("Authorization", `Bearer ${accessToken.token}`);
+        challengeState = {
+            status: "complete",
+            scopes: [scope],
+        };
+        return true;
+    }
+    return {
+        authorizeRequest,
+        authorizeRequestOnChallenge,
+    };
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * Parses a Key Vault identifier into its components.
+ *
+ * @param collection - The collection of the Key Vault identifier.
+ * @param identifier - The Key Vault identifier to be parsed.
+ */
+function parseKeyVaultIdentifier(collection, identifier) {
+    if (typeof collection !== "string" || !(collection = collection.trim())) {
+        throw new Error("Invalid collection argument");
+    }
+    if (typeof identifier !== "string" || !(identifier = identifier.trim())) {
+        throw new Error("Invalid identifier argument");
+    }
+    let baseUri;
+    try {
+        baseUri = new URL(identifier);
+    }
+    catch (e) {
+        throw new Error(`Invalid ${collection} identifier: ${identifier}. Not a valid URI`);
+    }
+    // Path is of the form '/collection/name[/version]'
+    const segments = (baseUri.pathname || "").split("/");
+    if (segments.length !== 3 && segments.length !== 4) {
+        throw new Error(`Invalid ${collection} identifier: ${identifier}. Bad number of segments: ${segments.length}`);
+    }
+    if (collection !== segments[1]) {
+        throw new Error(`Invalid ${collection} identifier: ${identifier}. segment [1] should be "${collection}", found "${segments[1]}"`);
+    }
+    const vaultUrl = `${baseUri.protocol}//${baseUri.host}`;
+    const name = segments[2];
+    const version = segments.length === 4 ? segments[3] : undefined;
+    return {
+        vaultUrl,
+        name,
+        version,
+    };
+}
+
+exports.createKeyVaultChallengeCallbacks = createKeyVaultChallengeCallbacks;
+exports.parseKeyVaultIdentifier = parseKeyVaultIdentifier;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 181:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var tslib = __nccwpck_require__(4351);
+var coreRestPipeline = __nccwpck_require__(8121);
+var logger$1 = __nccwpck_require__(3233);
+__nccwpck_require__(4559);
+var coreClient = __nccwpck_require__(9729);
+var coreHttpCompat = __nccwpck_require__(6232);
+var coreLro = __nccwpck_require__(7094);
+var coreUtil = __nccwpck_require__(1333);
+var coreTracing = __nccwpck_require__(4175);
+
+function _interopNamespace(e) {
+    if (e && e.__esModule) return e;
+    var n = Object.create(null);
+    if (e) {
+        Object.keys(e).forEach(function (k) {
+            if (k !== 'default') {
+                var d = Object.getOwnPropertyDescriptor(e, k);
+                Object.defineProperty(n, k, d.get ? d : {
+                    enumerable: true,
+                    get: function () { return e[k]; }
+                });
+            }
+        });
+    }
+    n["default"] = e;
+    return Object.freeze(n);
+}
+
+var coreRestPipeline__namespace = /*#__PURE__*/_interopNamespace(coreRestPipeline);
+var coreClient__namespace = /*#__PURE__*/_interopNamespace(coreClient);
+var coreHttpCompat__namespace = /*#__PURE__*/_interopNamespace(coreHttpCompat);
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * The \@azure/logger configuration for this package.
+ */
+const logger = logger$1.createClientLogger("keyvault-secrets");
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+/** Known values of {@link ApiVersion74} that the service accepts. */
+var KnownApiVersion74;
+(function (KnownApiVersion74) {
+    /** Api Version '7.4' */
+    KnownApiVersion74["Seven4"] = "7.4";
+})(KnownApiVersion74 || (KnownApiVersion74 = {}));
+/** Known values of {@link DeletionRecoveryLevel} that the service accepts. */
+exports.KnownDeletionRecoveryLevel = void 0;
+(function (KnownDeletionRecoveryLevel) {
+    /** Denotes a vault state in which deletion is an irreversible operation, without the possibility for recovery. This level corresponds to no protection being available against a Delete operation; the data is irretrievably lost upon accepting a Delete operation at the entity level or higher (vault, resource group, subscription etc.) */
+    KnownDeletionRecoveryLevel["Purgeable"] = "Purgeable";
+    /** Denotes a vault state in which deletion is recoverable, and which also permits immediate and permanent deletion (i.e. purge). This level guarantees the recoverability of the deleted entity during the retention interval (90 days), unless a Purge operation is requested, or the subscription is cancelled. System wil permanently delete it after 90 days, if not recovered */
+    KnownDeletionRecoveryLevel["RecoverablePurgeable"] = "Recoverable+Purgeable";
+    /** Denotes a vault state in which deletion is recoverable without the possibility for immediate and permanent deletion (i.e. purge). This level guarantees the recoverability of the deleted entity during the retention interval(90 days) and while the subscription is still available. System wil permanently delete it after 90 days, if not recovered */
+    KnownDeletionRecoveryLevel["Recoverable"] = "Recoverable";
+    /** Denotes a vault and subscription state in which deletion is recoverable within retention interval (90 days), immediate and permanent deletion (i.e. purge) is not permitted, and in which the subscription itself  cannot be permanently canceled. System wil permanently delete it after 90 days, if not recovered */
+    KnownDeletionRecoveryLevel["RecoverableProtectedSubscription"] = "Recoverable+ProtectedSubscription";
+    /** Denotes a vault state in which deletion is recoverable, and which also permits immediate and permanent deletion (i.e. purge when 7<= SoftDeleteRetentionInDays < 90). This level guarantees the recoverability of the deleted entity during the retention interval, unless a Purge operation is requested, or the subscription is cancelled. */
+    KnownDeletionRecoveryLevel["CustomizedRecoverablePurgeable"] = "CustomizedRecoverable+Purgeable";
+    /** Denotes a vault state in which deletion is recoverable without the possibility for immediate and permanent deletion (i.e. purge when 7<= SoftDeleteRetentionInDays < 90).This level guarantees the recoverability of the deleted entity during the retention interval and while the subscription is still available. */
+    KnownDeletionRecoveryLevel["CustomizedRecoverable"] = "CustomizedRecoverable";
+    /** Denotes a vault and subscription state in which deletion is recoverable, immediate and permanent deletion (i.e. purge) is not permitted, and in which the subscription itself cannot be permanently canceled when 7<= SoftDeleteRetentionInDays < 90. This level guarantees the recoverability of the deleted entity during the retention interval, and also reflects the fact that the subscription itself cannot be cancelled. */
+    KnownDeletionRecoveryLevel["CustomizedRecoverableProtectedSubscription"] = "CustomizedRecoverable+ProtectedSubscription";
+})(exports.KnownDeletionRecoveryLevel || (exports.KnownDeletionRecoveryLevel = {}));
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+const SecretSetParameters = {
+    type: {
+        name: "Composite",
+        className: "SecretSetParameters",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                required: true,
+                type: {
+                    name: "String"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            },
+            contentType: {
+                serializedName: "contentType",
+                type: {
+                    name: "String"
+                }
+            },
+            secretAttributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "SecretAttributes"
+                }
+            }
+        }
+    }
+};
+const Attributes = {
+    type: {
+        name: "Composite",
+        className: "Attributes",
+        modelProperties: {
+            enabled: {
+                serializedName: "enabled",
+                type: {
+                    name: "Boolean"
+                }
+            },
+            notBefore: {
+                serializedName: "nbf",
+                type: {
+                    name: "UnixTime"
+                }
+            },
+            expires: {
+                serializedName: "exp",
+                type: {
+                    name: "UnixTime"
+                }
+            },
+            created: {
+                serializedName: "created",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            },
+            updated: {
+                serializedName: "updated",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            }
+        }
+    }
+};
+const SecretBundle = {
+    type: {
+        name: "Composite",
+        className: "SecretBundle",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                type: {
+                    name: "String"
+                }
+            },
+            id: {
+                serializedName: "id",
+                type: {
+                    name: "String"
+                }
+            },
+            contentType: {
+                serializedName: "contentType",
+                type: {
+                    name: "String"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "SecretAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            },
+            kid: {
+                serializedName: "kid",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            managed: {
+                serializedName: "managed",
+                readOnly: true,
+                type: {
+                    name: "Boolean"
+                }
+            }
+        }
+    }
+};
+const KeyVaultError = {
+    type: {
+        name: "Composite",
+        className: "KeyVaultError",
+        modelProperties: {
+            error: {
+                serializedName: "error",
+                type: {
+                    name: "Composite",
+                    className: "ErrorModel"
+                }
+            }
+        }
+    }
+};
+const ErrorModel = {
+    type: {
+        name: "Composite",
+        className: "ErrorModel",
+        modelProperties: {
+            code: {
+                serializedName: "code",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            message: {
+                serializedName: "message",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            },
+            innerError: {
+                serializedName: "innererror",
+                type: {
+                    name: "Composite",
+                    className: "ErrorModel"
+                }
+            }
+        }
+    }
+};
+const SecretUpdateParameters = {
+    type: {
+        name: "Composite",
+        className: "SecretUpdateParameters",
+        modelProperties: {
+            contentType: {
+                serializedName: "contentType",
+                type: {
+                    name: "String"
+                }
+            },
+            secretAttributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "SecretAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            }
+        }
+    }
+};
+const SecretListResult = {
+    type: {
+        name: "Composite",
+        className: "SecretListResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "SecretItem"
+                        }
+                    }
+                }
+            },
+            nextLink: {
+                serializedName: "nextLink",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const SecretItem = {
+    type: {
+        name: "Composite",
+        className: "SecretItem",
+        modelProperties: {
+            id: {
+                serializedName: "id",
+                type: {
+                    name: "String"
+                }
+            },
+            attributes: {
+                serializedName: "attributes",
+                type: {
+                    name: "Composite",
+                    className: "SecretAttributes"
+                }
+            },
+            tags: {
+                serializedName: "tags",
+                type: {
+                    name: "Dictionary",
+                    value: { type: { name: "String" } }
+                }
+            },
+            contentType: {
+                serializedName: "contentType",
+                type: {
+                    name: "String"
+                }
+            },
+            managed: {
+                serializedName: "managed",
+                readOnly: true,
+                type: {
+                    name: "Boolean"
+                }
+            }
+        }
+    }
+};
+const DeletedSecretListResult = {
+    type: {
+        name: "Composite",
+        className: "DeletedSecretListResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "Sequence",
+                    element: {
+                        type: {
+                            name: "Composite",
+                            className: "DeletedSecretItem"
+                        }
+                    }
+                }
+            },
+            nextLink: {
+                serializedName: "nextLink",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const BackupSecretResult = {
+    type: {
+        name: "Composite",
+        className: "BackupSecretResult",
+        modelProperties: {
+            value: {
+                serializedName: "value",
+                readOnly: true,
+                type: {
+                    name: "Base64Url"
+                }
+            }
+        }
+    }
+};
+const SecretRestoreParameters = {
+    type: {
+        name: "Composite",
+        className: "SecretRestoreParameters",
+        modelProperties: {
+            secretBundleBackup: {
+                serializedName: "value",
+                required: true,
+                type: {
+                    name: "Base64Url"
+                }
+            }
+        }
+    }
+};
+const SecretProperties = {
+    type: {
+        name: "Composite",
+        className: "SecretProperties",
+        modelProperties: {
+            contentType: {
+                serializedName: "contentType",
+                type: {
+                    name: "String"
+                }
+            }
+        }
+    }
+};
+const SecretAttributes = {
+    type: {
+        name: "Composite",
+        className: "SecretAttributes",
+        modelProperties: Object.assign(Object.assign({}, Attributes.type.modelProperties), { recoverableDays: {
+                serializedName: "recoverableDays",
+                readOnly: true,
+                type: {
+                    name: "Number"
+                }
+            }, recoveryLevel: {
+                serializedName: "recoveryLevel",
+                readOnly: true,
+                type: {
+                    name: "String"
+                }
+            } })
+    }
+};
+const DeletedSecretBundle = {
+    type: {
+        name: "Composite",
+        className: "DeletedSecretBundle",
+        modelProperties: Object.assign(Object.assign({}, SecretBundle.type.modelProperties), { recoveryId: {
+                serializedName: "recoveryId",
+                type: {
+                    name: "String"
+                }
+            }, scheduledPurgeDate: {
+                serializedName: "scheduledPurgeDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            }, deletedDate: {
+                serializedName: "deletedDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            } })
+    }
+};
+const DeletedSecretItem = {
+    type: {
+        name: "Composite",
+        className: "DeletedSecretItem",
+        modelProperties: Object.assign(Object.assign({}, SecretItem.type.modelProperties), { recoveryId: {
+                serializedName: "recoveryId",
+                type: {
+                    name: "String"
+                }
+            }, scheduledPurgeDate: {
+                serializedName: "scheduledPurgeDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            }, deletedDate: {
+                serializedName: "deletedDate",
+                readOnly: true,
+                type: {
+                    name: "UnixTime"
+                }
+            } })
+    }
+};
+
+var Mappers = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    SecretSetParameters: SecretSetParameters,
+    Attributes: Attributes,
+    SecretBundle: SecretBundle,
+    KeyVaultError: KeyVaultError,
+    ErrorModel: ErrorModel,
+    SecretUpdateParameters: SecretUpdateParameters,
+    SecretListResult: SecretListResult,
+    SecretItem: SecretItem,
+    DeletedSecretListResult: DeletedSecretListResult,
+    BackupSecretResult: BackupSecretResult,
+    SecretRestoreParameters: SecretRestoreParameters,
+    SecretProperties: SecretProperties,
+    SecretAttributes: SecretAttributes,
+    DeletedSecretBundle: DeletedSecretBundle,
+    DeletedSecretItem: DeletedSecretItem
+});
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+const contentType = {
+    parameterPath: ["options", "contentType"],
+    mapper: {
+        defaultValue: "application/json",
+        isConstant: true,
+        serializedName: "Content-Type",
+        type: {
+            name: "String"
+        }
+    }
+};
+const accept = {
+    parameterPath: "accept",
+    mapper: {
+        defaultValue: "application/json",
+        isConstant: true,
+        serializedName: "Accept",
+        type: {
+            name: "String"
+        }
+    }
+};
+const vaultBaseUrl = {
+    parameterPath: "vaultBaseUrl",
+    mapper: {
+        serializedName: "vaultBaseUrl",
+        required: true,
+        type: {
+            name: "String"
+        }
+    },
+    skipEncoding: true
+};
+const secretName = {
+    parameterPath: "secretName",
+    mapper: {
+        constraints: {
+            Pattern: new RegExp("^[0-9a-zA-Z-]+$")
+        },
+        serializedName: "secret-name",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const apiVersion = {
+    parameterPath: "apiVersion",
+    mapper: {
+        serializedName: "api-version",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const secretName1 = {
+    parameterPath: "secretName",
+    mapper: {
+        serializedName: "secret-name",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const secretVersion = {
+    parameterPath: "secretVersion",
+    mapper: {
+        serializedName: "secret-version",
+        required: true,
+        type: {
+            name: "String"
+        }
+    }
+};
+const maxresults = {
+    parameterPath: ["options", "maxresults"],
+    mapper: {
+        constraints: {
+            InclusiveMaximum: 25,
+            InclusiveMinimum: 1
+        },
+        serializedName: "maxresults",
+        type: {
+            name: "Number"
+        }
+    }
+};
+const nextLink = {
+    parameterPath: "nextLink",
+    mapper: {
+        serializedName: "nextLink",
+        required: true,
+        type: {
+            name: "String"
+        }
+    },
+    skipEncoding: true
+};
+
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT License.
+ *
+ * Code generated by Microsoft (R) AutoRest Code Generator.
+ * Changes may cause incorrect behavior and will be lost if the code is regenerated.
+ */
+/** @internal */
+class KeyVaultClient extends coreHttpCompat__namespace.ExtendedServiceClient {
+    /**
+     * Initializes a new instance of the KeyVaultClient class.
+     * @param apiVersion Api Version
+     * @param options The parameter options
+     */
+    constructor(apiVersion, options) {
+        var _a, _b;
+        if (apiVersion === undefined) {
+            throw new Error("'apiVersion' cannot be null");
+        }
+        // Initializing default values for options
+        if (!options) {
+            options = {};
+        }
+        const defaults = {
+            requestContentType: "application/json; charset=utf-8"
+        };
+        const packageDetails = `azsdk-js-keyvault-secrets/4.7.0`;
+        const userAgentPrefix = options.userAgentOptions && options.userAgentOptions.userAgentPrefix
+            ? `${options.userAgentOptions.userAgentPrefix} ${packageDetails}`
+            : `${packageDetails}`;
+        const optionsWithDefaults = Object.assign(Object.assign(Object.assign({}, defaults), options), { userAgentOptions: {
+                userAgentPrefix
+            }, baseUri: (_b = (_a = options.endpoint) !== null && _a !== void 0 ? _a : options.baseUri) !== null && _b !== void 0 ? _b : "{vaultBaseUrl}" });
+        super(optionsWithDefaults);
+        if ((options === null || options === void 0 ? void 0 : options.pipeline) && options.pipeline.getOrderedPolicies().length > 0) {
+            const pipelinePolicies = options.pipeline.getOrderedPolicies();
+            const bearerTokenAuthenticationPolicyFound = pipelinePolicies.some((pipelinePolicy) => pipelinePolicy.name ===
+                coreRestPipeline__namespace.bearerTokenAuthenticationPolicyName);
+            if (!bearerTokenAuthenticationPolicyFound) {
+                this.pipeline.removePolicy({
+                    name: coreRestPipeline__namespace.bearerTokenAuthenticationPolicyName
+                });
+                this.pipeline.addPolicy(coreRestPipeline__namespace.bearerTokenAuthenticationPolicy({
+                    scopes: `${optionsWithDefaults.baseUri}/.default`,
+                    challengeCallbacks: {
+                        authorizeRequestOnChallenge: coreClient__namespace.authorizeRequestOnClaimChallenge
+                    }
+                }));
+            }
+        }
+        // Parameter assignments
+        this.apiVersion = apiVersion;
+    }
+    /**
+     *  The SET operation adds a secret to the Azure Key Vault. If the named secret already exists, Azure
+     * Key Vault creates a new version of that secret. This operation requires the secrets/set permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret. The value you provide may be copied globally for the
+     *                   purpose of running the service. The value provided should not include personally identifiable or
+     *                   sensitive information.
+     * @param value The value of the secret.
+     * @param options The options parameters.
+     */
+    setSecret(vaultBaseUrl, secretName, value, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, value, options }, setSecretOperationSpec);
+    }
+    /**
+     * The DELETE operation applies to any secret stored in Azure Key Vault. DELETE cannot be applied to an
+     * individual version of a secret. This operation requires the secrets/delete permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param options The options parameters.
+     */
+    deleteSecret(vaultBaseUrl, secretName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, options }, deleteSecretOperationSpec);
+    }
+    /**
+     * The UPDATE operation changes specified attributes of an existing stored secret. Attributes that are
+     * not specified in the request are left unchanged. The value of a secret itself cannot be changed.
+     * This operation requires the secrets/set permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param secretVersion The version of the secret.
+     * @param options The options parameters.
+     */
+    updateSecret(vaultBaseUrl, secretName, secretVersion, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, secretVersion, options }, updateSecretOperationSpec);
+    }
+    /**
+     * The GET operation is applicable to any secret stored in Azure Key Vault. This operation requires the
+     * secrets/get permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param secretVersion The version of the secret. This URI fragment is optional. If not specified, the
+     *                      latest version of the secret is returned.
+     * @param options The options parameters.
+     */
+    getSecret(vaultBaseUrl, secretName, secretVersion, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, secretVersion, options }, getSecretOperationSpec);
+    }
+    /**
+     * The Get Secrets operation is applicable to the entire vault. However, only the base secret
+     * identifier and its attributes are provided in the response. Individual secret versions are not
+     * listed in the response. This operation requires the secrets/list permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param options The options parameters.
+     */
+    getSecrets(vaultBaseUrl, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, options }, getSecretsOperationSpec);
+    }
+    /**
+     * The full secret identifier and attributes are provided in the response. No values are returned for
+     * the secrets. This operations requires the secrets/list permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param options The options parameters.
+     */
+    getSecretVersions(vaultBaseUrl, secretName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, options }, getSecretVersionsOperationSpec);
+    }
+    /**
+     * The Get Deleted Secrets operation returns the secrets that have been deleted for a vault enabled for
+     * soft-delete. This operation requires the secrets/list permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param options The options parameters.
+     */
+    getDeletedSecrets(vaultBaseUrl, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, options }, getDeletedSecretsOperationSpec);
+    }
+    /**
+     * The Get Deleted Secret operation returns the specified deleted secret along with its attributes.
+     * This operation requires the secrets/get permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param options The options parameters.
+     */
+    getDeletedSecret(vaultBaseUrl, secretName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, options }, getDeletedSecretOperationSpec);
+    }
+    /**
+     * The purge deleted secret operation removes the secret permanently, without the possibility of
+     * recovery. This operation can only be enabled on a soft-delete enabled vault. This operation requires
+     * the secrets/purge permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param options The options parameters.
+     */
+    purgeDeletedSecret(vaultBaseUrl, secretName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, options }, purgeDeletedSecretOperationSpec);
+    }
+    /**
+     * Recovers the deleted secret in the specified vault. This operation can only be performed on a
+     * soft-delete enabled vault. This operation requires the secrets/recover permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the deleted secret.
+     * @param options The options parameters.
+     */
+    recoverDeletedSecret(vaultBaseUrl, secretName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, options }, recoverDeletedSecretOperationSpec);
+    }
+    /**
+     * Requests that a backup of the specified secret be downloaded to the client. All versions of the
+     * secret will be downloaded. This operation requires the secrets/backup permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param options The options parameters.
+     */
+    backupSecret(vaultBaseUrl, secretName, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, options }, backupSecretOperationSpec);
+    }
+    /**
+     * Restores a backed up secret, and all its versions, to a vault. This operation requires the
+     * secrets/restore permission.
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretBundleBackup The backup blob associated with a secret bundle.
+     * @param options The options parameters.
+     */
+    restoreSecret(vaultBaseUrl, secretBundleBackup, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretBundleBackup, options }, restoreSecretOperationSpec);
+    }
+    /**
+     * GetSecretsNext
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param nextLink The nextLink from the previous successful call to the GetSecrets method.
+     * @param options The options parameters.
+     */
+    getSecretsNext(vaultBaseUrl, nextLink, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, nextLink, options }, getSecretsNextOperationSpec);
+    }
+    /**
+     * GetSecretVersionsNext
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param secretName The name of the secret.
+     * @param nextLink The nextLink from the previous successful call to the GetSecretVersions method.
+     * @param options The options parameters.
+     */
+    getSecretVersionsNext(vaultBaseUrl, secretName, nextLink, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, secretName, nextLink, options }, getSecretVersionsNextOperationSpec);
+    }
+    /**
+     * GetDeletedSecretsNext
+     * @param vaultBaseUrl The vault name, for example https://myvault.vault.azure.net.
+     * @param nextLink The nextLink from the previous successful call to the GetDeletedSecrets method.
+     * @param options The options parameters.
+     */
+    getDeletedSecretsNext(vaultBaseUrl, nextLink, options) {
+        return this.sendOperationRequest({ vaultBaseUrl, nextLink, options }, getDeletedSecretsNextOperationSpec);
+    }
+}
+// Operation Specifications
+const serializer = coreClient__namespace.createSerializer(Mappers, /* isXml */ false);
+const setSecretOperationSpec = {
+    path: "/secrets/{secret-name}",
+    httpMethod: "PUT",
+    responses: {
+        200: {
+            bodyMapper: SecretBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            value: ["value"],
+            tags: ["options", "tags"],
+            contentType: ["options", "contentType"],
+            secretAttributes: ["options", "secretAttributes"]
+        },
+        mapper: Object.assign(Object.assign({}, SecretSetParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, secretName],
+    headerParameters: [contentType, accept],
+    mediaType: "json",
+    serializer
+};
+const deleteSecretOperationSpec = {
+    path: "/secrets/{secret-name}",
+    httpMethod: "DELETE",
+    responses: {
+        200: {
+            bodyMapper: DeletedSecretBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, secretName1],
+    headerParameters: [accept],
+    serializer
+};
+const updateSecretOperationSpec = {
+    path: "/secrets/{secret-name}/{secret-version}",
+    httpMethod: "PATCH",
+    responses: {
+        200: {
+            bodyMapper: SecretBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: {
+            contentType: ["options", "contentType"],
+            secretAttributes: ["options", "secretAttributes"],
+            tags: ["options", "tags"]
+        },
+        mapper: Object.assign(Object.assign({}, SecretUpdateParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [
+        vaultBaseUrl,
+        secretName1,
+        secretVersion
+    ],
+    headerParameters: [contentType, accept],
+    mediaType: "json",
+    serializer
+};
+const getSecretOperationSpec = {
+    path: "/secrets/{secret-name}/{secret-version}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: SecretBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [
+        vaultBaseUrl,
+        secretName1,
+        secretVersion
+    ],
+    headerParameters: [accept],
+    serializer
+};
+const getSecretsOperationSpec = {
+    path: "/secrets",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: SecretListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion, maxresults],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept],
+    serializer
+};
+const getSecretVersionsOperationSpec = {
+    path: "/secrets/{secret-name}/versions",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: SecretListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion, maxresults],
+    urlParameters: [vaultBaseUrl, secretName1],
+    headerParameters: [accept],
+    serializer
+};
+const getDeletedSecretsOperationSpec = {
+    path: "/deletedsecrets",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: DeletedSecretListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion, maxresults],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [accept],
+    serializer
+};
+const getDeletedSecretOperationSpec = {
+    path: "/deletedsecrets/{secret-name}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: DeletedSecretBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, secretName1],
+    headerParameters: [accept],
+    serializer
+};
+const purgeDeletedSecretOperationSpec = {
+    path: "/deletedsecrets/{secret-name}",
+    httpMethod: "DELETE",
+    responses: {
+        204: {},
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, secretName1],
+    headerParameters: [accept],
+    serializer
+};
+const recoverDeletedSecretOperationSpec = {
+    path: "/deletedsecrets/{secret-name}/recover",
+    httpMethod: "POST",
+    responses: {
+        200: {
+            bodyMapper: SecretBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, secretName1],
+    headerParameters: [accept],
+    serializer
+};
+const backupSecretOperationSpec = {
+    path: "/secrets/{secret-name}/backup",
+    httpMethod: "POST",
+    responses: {
+        200: {
+            bodyMapper: BackupSecretResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl, secretName1],
+    headerParameters: [accept],
+    serializer
+};
+const restoreSecretOperationSpec = {
+    path: "/secrets/restore",
+    httpMethod: "POST",
+    responses: {
+        200: {
+            bodyMapper: SecretBundle
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    requestBody: {
+        parameterPath: { secretBundleBackup: ["secretBundleBackup"] },
+        mapper: Object.assign(Object.assign({}, SecretRestoreParameters), { required: true })
+    },
+    queryParameters: [apiVersion],
+    urlParameters: [vaultBaseUrl],
+    headerParameters: [contentType, accept],
+    mediaType: "json",
+    serializer
+};
+const getSecretsNextOperationSpec = {
+    path: "{nextLink}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: SecretListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion, maxresults],
+    urlParameters: [vaultBaseUrl, nextLink],
+    headerParameters: [accept],
+    serializer
+};
+const getSecretVersionsNextOperationSpec = {
+    path: "{nextLink}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: SecretListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion, maxresults],
+    urlParameters: [
+        vaultBaseUrl,
+        secretName1,
+        nextLink
+    ],
+    headerParameters: [accept],
+    serializer
+};
+const getDeletedSecretsNextOperationSpec = {
+    path: "{nextLink}",
+    httpMethod: "GET",
+    responses: {
+        200: {
+            bodyMapper: DeletedSecretListResult
+        },
+        default: {
+            bodyMapper: KeyVaultError
+        }
+    },
+    queryParameters: [apiVersion, maxresults],
+    urlParameters: [vaultBaseUrl, nextLink],
+    headerParameters: [accept],
+    serializer
+};
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+const validWWWAuthenticateProperties = [
+    "authorization",
+    "authorization_url",
+    "resource",
+    "scope",
+    "tenantId",
+];
+/**
+ * Parses an WWW-Authenticate response header.
+ * This transforms a string value like:
+ * `Bearer authorization="https://some.url/tenantId", resource="https://some.url"`
+ * into an object like:
+ * `{ authorization: "https://some.url/tenantId", resource: "https://some.url" }`
+ * @param headerValue - String value in the WWW-Authenticate header
+ */
+function parseWWWAuthenticateHeader(headerValue) {
+    const pairDelimiter = /,? +/;
+    const parsed = headerValue.split(pairDelimiter).reduce((kvPairs, p) => {
+        if (p.match(/\w="/)) {
+            // 'sampleKey="sample_value"' -> [sampleKey, "sample_value"] -> { sampleKey: sample_value }
+            const [key, value] = p.split("=");
+            if (validWWWAuthenticateProperties.includes(key)) {
+                // The values will be wrapped in quotes, which need to be stripped out.
+                return Object.assign(Object.assign({}, kvPairs), { [key]: value.slice(1, -1) });
+            }
+        }
+        return kvPairs;
+    }, {});
+    // Finally, we pull the tenantId from the authorization header to support multi-tenant authentication.
+    if (parsed.authorization) {
+        try {
+            const tenantId = new URL(parsed.authorization).pathname.substring(1);
+            if (tenantId) {
+                parsed.tenantId = tenantId;
+            }
+        }
+        catch (_) {
+            throw new Error(`The challenge authorization URI '${parsed.authorization}' is invalid.`);
+        }
+    }
+    return parsed;
+}
+
+// Copyright (c) Microsoft Corporation.
+function verifyChallengeResource(scope, request) {
+    let scopeAsUrl;
+    try {
+        scopeAsUrl = new URL(scope);
+    }
+    catch (e) {
+        throw new Error(`The challenge contains invalid scope '${scope}'`);
+    }
+    const requestUrl = new URL(request.url);
+    if (!requestUrl.hostname.endsWith(`.${scopeAsUrl.hostname}`)) {
+        throw new Error(`The challenge resource '${scopeAsUrl.hostname}' does not match the requested domain. Set disableChallengeResourceVerification to true in your client options to disable. See https://aka.ms/azsdk/blog/vault-uri for more information.`);
+    }
+}
+/**
+ * Creates challenge callback handlers to manage CAE lifecycle in Azure Key Vault.
+ *
+ * Key Vault supports other authentication schemes, but we ensure challenge authentication
+ * is used by first sending a copy of the request, without authorization or content.
+ *
+ * when the challenge is received, it will be authenticated and used to send the original
+ * request with authorization.
+ *
+ * Following the first request of a client, follow-up requests will get the cached token
+ * if possible.
+ *
+ */
+function createKeyVaultChallengeCallbacks(options = {}) {
+    const { disableChallengeResourceVerification } = options;
+    let challengeState = { status: "none" };
+    function requestToOptions(request) {
+        return {
+            abortSignal: request.abortSignal,
+            requestOptions: {
+                timeout: request.timeout > 0 ? request.timeout : undefined,
+            },
+            tracingOptions: request.tracingOptions,
+        };
+    }
+    async function authorizeRequest({ request, getAccessToken, }) {
+        const requestOptions = requestToOptions(request);
+        switch (challengeState.status) {
+            case "none":
+                challengeState = {
+                    status: "started",
+                    originalBody: request.body,
+                };
+                request.body = null;
+                break;
+            case "started":
+                break; // Retry, we should not overwrite the original body
+            case "complete": {
+                const token = await getAccessToken(challengeState.scopes, requestOptions);
+                if (token) {
+                    request.headers.set("authorization", `Bearer ${token.token}`);
+                }
+                break;
+            }
+        }
+        return Promise.resolve();
+    }
+    async function authorizeRequestOnChallenge({ request, response, getAccessToken, }) {
+        if (request.body === null && challengeState.status === "started") {
+            // Reset the original body before doing anything else.
+            // Note: If successful status will be "complete", otherwise "none" will
+            // restart the process.
+            request.body = challengeState.originalBody;
+        }
+        const getTokenOptions = requestToOptions(request);
+        const challenge = response.headers.get("WWW-Authenticate");
+        if (!challenge) {
+            throw new Error("Missing challenge.");
+        }
+        const parsedChallenge = parseWWWAuthenticateHeader(challenge) || {};
+        const scope = parsedChallenge.resource
+            ? parsedChallenge.resource + "/.default"
+            : parsedChallenge.scope;
+        if (!scope) {
+            throw new Error("Missing scope.");
+        }
+        if (!disableChallengeResourceVerification) {
+            verifyChallengeResource(scope, request);
+        }
+        const accessToken = await getAccessToken([scope], Object.assign(Object.assign({}, getTokenOptions), { tenantId: parsedChallenge.tenantId }));
+        if (!accessToken) {
+            return false;
+        }
+        request.headers.set("Authorization", `Bearer ${accessToken.token}`);
+        challengeState = {
+            status: "complete",
+            scopes: [scope],
+        };
+        return true;
+    }
+    return {
+        authorizeRequest,
+        authorizeRequestOnChallenge,
+    };
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * Parses a Key Vault identifier into its components.
+ *
+ * @param collection - The collection of the Key Vault identifier.
+ * @param identifier - The Key Vault identifier to be parsed.
+ */
+function parseKeyVaultIdentifier(collection, identifier) {
+    if (typeof collection !== "string" || !(collection = collection.trim())) {
+        throw new Error("Invalid collection argument");
+    }
+    if (typeof identifier !== "string" || !(identifier = identifier.trim())) {
+        throw new Error("Invalid identifier argument");
+    }
+    let baseUri;
+    try {
+        baseUri = new URL(identifier);
+    }
+    catch (e) {
+        throw new Error(`Invalid ${collection} identifier: ${identifier}. Not a valid URI`);
+    }
+    // Path is of the form '/collection/name[/version]'
+    const segments = (baseUri.pathname || "").split("/");
+    if (segments.length !== 3 && segments.length !== 4) {
+        throw new Error(`Invalid ${collection} identifier: ${identifier}. Bad number of segments: ${segments.length}`);
+    }
+    if (collection !== segments[1]) {
+        throw new Error(`Invalid ${collection} identifier: ${identifier}. segment [1] should be "${collection}", found "${segments[1]}"`);
+    }
+    const vaultUrl = `${baseUri.protocol}//${baseUri.host}`;
+    const name = segments[2];
+    const version = segments.length === 4 ? segments[3] : undefined;
+    return {
+        vaultUrl,
+        name,
+        version,
+    };
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Common properties and methods of the Key Vault Secret Pollers.
+ */
+class KeyVaultSecretPoller extends coreLro.Poller {
+    constructor() {
+        super(...arguments);
+        /**
+         * Defines how much time the poller is going to wait before making a new request to the service.
+         */
+        this.intervalInMs = 2000;
+    }
+    /**
+     * The method used by the poller to wait before attempting to update its operation.
+     */
+    async delay() {
+        return coreUtil.delay(this.intervalInMs);
+    }
+}
+/**
+ * Common properties and methods of the Key Vault Secret Poller operations.
+ */
+// eslint-disable-next-next no-use-before-define
+class KeyVaultSecretPollOperation {
+    constructor(state, options = {}) {
+        this.state = state;
+        this.cancelMessage = "";
+        if (options.cancelMessage) {
+            this.cancelMessage = options.cancelMessage;
+        }
+    }
+    /**
+     * Meant to reach to the service and update the Poller operation.
+     * @param options - The optional parameters, which is only an abortSignal from \@azure/abort-controller
+     */
+    async update() {
+        throw new Error("Operation not supported.");
+    }
+    /**
+     * Meant to reach to the service and cancel the Poller operation.
+     * @param options - The optional parameters, which is only an abortSignal from \@azure/abort-controller
+     */
+    async cancel() {
+        throw new Error(this.cancelMessage);
+    }
+    /**
+     * Serializes the Poller operation.
+     */
+    toString() {
+        return JSON.stringify({
+            state: this.state,
+        });
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Parses the given Key Vault Secret Id. An example is:
+ *
+ *   https://<keyvault-name>.vault.azure.net/secrets/<secret-name>/<unique-version-id>
+ *
+ * On parsing the above Id, this function returns:
+ *```ts
+ *   {
+ *      sourceId: "https://<keyvault-name>.vault.azure.net/secrets/<secret-name>/<unique-version-id>",
+ *      vaultUrl: "https://<keyvault-name>.vault.azure.net",
+ *      version: "<unique-version-id>",
+ *      name: "<secret-name>"
+ *   }
+ *```
+ * @param id - The Id of the Key Vault Secret.
+ */
+function parseKeyVaultSecretIdentifier(id) {
+    const urlParts = id.split("/");
+    const collection = urlParts[3];
+    return Object.assign({ sourceId: id }, parseKeyVaultIdentifier(collection, id));
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * @internal
+ * Shapes the exposed {@link KeyVaultKey} based on either a received secret bundle or deleted secret bundle.
+ */
+function getSecretFromSecretBundle(bundle) {
+    const secretBundle = bundle;
+    const deletedSecretBundle = bundle;
+    const parsedId = parseKeyVaultSecretIdentifier(secretBundle.id);
+    const attributes = secretBundle.attributes;
+    delete secretBundle.attributes;
+    const resultObject = {
+        value: secretBundle.value,
+        name: parsedId.name,
+        properties: {
+            expiresOn: attributes === null || attributes === void 0 ? void 0 : attributes.expires,
+            createdOn: attributes === null || attributes === void 0 ? void 0 : attributes.created,
+            updatedOn: attributes === null || attributes === void 0 ? void 0 : attributes.updated,
+            enabled: attributes === null || attributes === void 0 ? void 0 : attributes.enabled,
+            notBefore: attributes === null || attributes === void 0 ? void 0 : attributes.notBefore,
+            recoverableDays: attributes === null || attributes === void 0 ? void 0 : attributes.recoverableDays,
+            recoveryLevel: attributes === null || attributes === void 0 ? void 0 : attributes.recoveryLevel,
+            id: secretBundle.id,
+            contentType: secretBundle.contentType,
+            tags: secretBundle.tags,
+            managed: secretBundle.managed,
+            vaultUrl: parsedId.vaultUrl,
+            version: parsedId.version,
+            name: parsedId.name,
+            certificateKeyId: secretBundle.kid,
+        },
+    };
+    if (deletedSecretBundle.recoveryId) {
+        resultObject.properties.recoveryId = deletedSecretBundle.recoveryId;
+        resultObject.properties.scheduledPurgeDate = deletedSecretBundle.scheduledPurgeDate;
+        resultObject.properties.deletedOn = deletedSecretBundle.deletedDate;
+        resultObject.recoveryId = deletedSecretBundle.recoveryId;
+        resultObject.scheduledPurgeDate = deletedSecretBundle.scheduledPurgeDate;
+        resultObject.deletedOn = deletedSecretBundle.deletedDate;
+    }
+    if (attributes) {
+        if (attributes.vaultUrl) {
+            delete resultObject.properties.vaultUrl;
+        }
+        if (attributes.expires) {
+            delete resultObject.properties.expires;
+        }
+        if (attributes.created) {
+            delete resultObject.properties.created;
+        }
+        if (attributes.updated) {
+            delete resultObject.properties.updated;
+        }
+    }
+    return resultObject;
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+const SDK_VERSION = "4.7.0";
+
+// Copyright (c) Microsoft Corporation.
+const tracingClient = coreTracing.createTracingClient({
+    namespace: "Microsoft.KeyVault",
+    packageName: "@azure/keyvault-secrets",
+    packageVersion: SDK_VERSION,
+});
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * An interface representing a delete secret's poll operation
+ */
+class DeleteSecretPollOperation extends KeyVaultSecretPollOperation {
+    constructor(state, vaultUrl, client, operationOptions = {}) {
+        super(state, { cancelMessage: "Canceling the deletion of a secret is not supported." });
+        this.state = state;
+        this.vaultUrl = vaultUrl;
+        this.client = client;
+        this.operationOptions = operationOptions;
+    }
+    /**
+     * Sends a delete request for the given Key Vault Key's name to the Key Vault service.
+     * Since the Key Vault Key won't be immediately deleted, we have {@link beginDeleteKey}.
+     */
+    deleteSecret(name, options = {}) {
+        return tracingClient.withSpan("DeleteSecretPoller.deleteSecret", options, async (updatedOptions) => {
+            const response = await this.client.deleteSecret(this.vaultUrl, name, updatedOptions);
+            return getSecretFromSecretBundle(response);
+        });
+    }
+    /**
+     * The getDeletedSecret method returns the specified deleted secret along with its properties.
+     * This operation requires the secrets/get permission.
+     */
+    getDeletedSecret(name, options = {}) {
+        return tracingClient.withSpan("DeleteSecretPoller.getDeletedSecret", options, async (updatedOptions) => {
+            const response = await this.client.getDeletedSecret(this.vaultUrl, name, updatedOptions);
+            return getSecretFromSecretBundle(response);
+        });
+    }
+    /**
+     * Reaches to the service and updates the delete secret's poll operation.
+     */
+    async update(options = {}) {
+        const state = this.state;
+        const { name } = state;
+        if (options.abortSignal) {
+            this.operationOptions.abortSignal = options.abortSignal;
+        }
+        if (!state.isStarted) {
+            const deletedSecret = await this.deleteSecret(name, this.operationOptions);
+            state.isStarted = true;
+            state.result = deletedSecret;
+            if (!deletedSecret.properties.recoveryId) {
+                state.isCompleted = true;
+            }
+        }
+        if (!state.isCompleted) {
+            try {
+                state.result = await this.getDeletedSecret(name, this.operationOptions);
+                state.isCompleted = true;
+            }
+            catch (error) {
+                if (error.statusCode === 403) {
+                    // At this point, the resource exists but the user doesn't have access to it.
+                    state.isCompleted = true;
+                }
+                else if (error.statusCode !== 404) {
+                    state.error = error;
+                    state.isCompleted = true;
+                    throw error;
+                }
+            }
+        }
+        return this;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Class that creates a poller that waits until a secret finishes being deleted.
+ */
+class DeleteSecretPoller extends KeyVaultSecretPoller {
+    constructor(options) {
+        const { vaultUrl, client, name, operationOptions, intervalInMs = 2000, resumeFrom } = options;
+        let state;
+        if (resumeFrom) {
+            state = JSON.parse(resumeFrom).state;
+        }
+        const operation = new DeleteSecretPollOperation(Object.assign(Object.assign({}, state), { name }), vaultUrl, client, operationOptions);
+        super(operation);
+        this.intervalInMs = intervalInMs;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * An interface representing a delete secret's poll operation
+ */
+class RecoverDeletedSecretPollOperation extends KeyVaultSecretPollOperation {
+    constructor(state, vaultUrl, client, options = {}) {
+        super(state, { cancelMessage: "Canceling the recovery of a deleted secret is not supported." });
+        this.state = state;
+        this.vaultUrl = vaultUrl;
+        this.client = client;
+        this.options = options;
+    }
+    /**
+     * The getSecret method returns the specified secret along with its properties.
+     * This operation requires the secrets/get permission.
+     */
+    getSecret(name, options = {}) {
+        return tracingClient.withSpan("RecoverDeletedSecretPoller.getSecret", options, async (updatedOptions) => {
+            const response = await this.client.getSecret(this.vaultUrl, name, options && options.version ? options.version : "", updatedOptions);
+            return getSecretFromSecretBundle(response);
+        });
+    }
+    /**
+     * The recoverDeletedSecret method recovers the specified deleted secret along with its properties.
+     * This operation requires the secrets/recover permission.
+     */
+    recoverDeletedSecret(name, options = {}) {
+        return tracingClient.withSpan("RecoverDeletedSecretPoller.recoverDeletedSecret", options, async (updatedOptions) => {
+            const response = await this.client.recoverDeletedSecret(this.vaultUrl, name, updatedOptions);
+            return getSecretFromSecretBundle(response);
+        });
+    }
+    /**
+     * Reaches to the service and updates the delete secret's poll operation.
+     */
+    async update(options = {}) {
+        const state = this.state;
+        const { name } = state;
+        if (options.abortSignal) {
+            this.options.abortSignal = options.abortSignal;
+        }
+        if (!state.isStarted) {
+            try {
+                state.result = (await this.getSecret(name, this.options)).properties;
+                state.isCompleted = true;
+            }
+            catch (_a) {
+                // Nothing to do here.
+            }
+            if (!state.isCompleted) {
+                state.result = (await this.recoverDeletedSecret(name, this.options)).properties;
+                state.isStarted = true;
+            }
+        }
+        if (!state.isCompleted) {
+            try {
+                state.result = (await this.getSecret(name, this.options)).properties;
+                state.isCompleted = true;
+            }
+            catch (error) {
+                if (error.statusCode === 403) {
+                    // At this point, the resource exists but the user doesn't have access to it.
+                    state.isCompleted = true;
+                }
+                else if (error.statusCode !== 404) {
+                    state.error = error;
+                    state.isCompleted = true;
+                    throw error;
+                }
+            }
+        }
+        return this;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Class that deletes a poller that waits until a secret finishes being deleted
+ */
+class RecoverDeletedSecretPoller extends KeyVaultSecretPoller {
+    constructor(options) {
+        const { vaultUrl, client, name, operationOptions, intervalInMs = 2000, resumeFrom } = options;
+        let state;
+        if (resumeFrom) {
+            state = JSON.parse(resumeFrom).state;
+        }
+        const operation = new RecoverDeletedSecretPollOperation(Object.assign(Object.assign({}, state), { name }), vaultUrl, client, operationOptions);
+        super(operation);
+        this.intervalInMs = intervalInMs;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * The latest supported KeyVault service API version
+ */
+const LATEST_API_VERSION = "7.4";
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * The SecretClient provides methods to manage {@link KeyVaultSecret} in
+ * the Azure Key Vault. The client supports creating, retrieving, updating,
+ * deleting, purging, backing up, restoring and listing KeyVaultSecrets. The
+ * client also supports listing {@link DeletedSecret} for a soft-delete enabled Azure
+ * Key Vault.
+ */
+class SecretClient {
+    /**
+     * Creates an instance of SecretClient.
+     *
+     * Example usage:
+     * ```ts
+     * import { SecretClient } from "@azure/keyvault-secrets";
+     * import { DefaultAzureCredential } from "@azure/identity";
+     *
+     * let vaultUrl = `https://<MY KEYVAULT HERE>.vault.azure.net`;
+     * let credentials = new DefaultAzureCredential();
+     *
+     * let client = new SecretClient(vaultUrl, credentials);
+     * ```
+     * @param vaultUrl - The base URL to the vault. You should validate that this URL references a valid Key Vault resource. See https://aka.ms/azsdk/blog/vault-uri for details.
+     * @param credential - An object that implements the `TokenCredential` interface used to authenticate requests to the service. Use the \@azure/identity package to create a credential that suits your needs.
+     * @param pipelineOptions - Pipeline options used to configure Key Vault API requests.
+     *                          Omit this parameter to use the default pipeline configuration.
+     */
+    constructor(vaultUrl, credential, pipelineOptions = {}) {
+        this.vaultUrl = vaultUrl;
+        const authPolicy = coreRestPipeline.bearerTokenAuthenticationPolicy({
+            credential,
+            scopes: [],
+            challengeCallbacks: createKeyVaultChallengeCallbacks(pipelineOptions),
+        });
+        const internalPipelineOptions = Object.assign(Object.assign({}, pipelineOptions), { loggingOptions: {
+                logger: logger.info,
+                allowedHeaderNames: [
+                    "x-ms-keyvault-region",
+                    "x-ms-keyvault-network-info",
+                    "x-ms-keyvault-service-version",
+                ],
+            } });
+        this.client = new KeyVaultClient(pipelineOptions.serviceVersion || LATEST_API_VERSION, internalPipelineOptions);
+        this.client.pipeline.addPolicy(authPolicy);
+    }
+    /**
+     * The setSecret method adds a secret or secret version to the Azure Key Vault. If the named secret
+     * already exists, Azure Key Vault creates a new version of that secret.
+     * This operation requires the secrets/set permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * await client.setSecret("MySecretName", "ABC123");
+     * ```
+     * Adds a secret in a specified key vault.
+     * @param secretName - The name of the secret.
+     * @param value - The value of the secret.
+     * @param options - The optional parameters.
+     */
+    setSecret(secretName, value, options = {}) {
+        let unflattenedOptions = {};
+        if (options) {
+            const { enabled, notBefore, expiresOn: expires } = options, remainingOptions = tslib.__rest(options, ["enabled", "notBefore", "expiresOn"]);
+            unflattenedOptions = Object.assign(Object.assign({}, remainingOptions), { secretAttributes: {
+                    enabled,
+                    notBefore,
+                    expires,
+                } });
+        }
+        return tracingClient.withSpan("SecretClient.setSecret", unflattenedOptions, async (updatedOptions) => {
+            const response = await this.client.setSecret(this.vaultUrl, secretName, value, updatedOptions);
+            return getSecretFromSecretBundle(response);
+        });
+    }
+    /**
+     * Deletes a secret stored in Azure Key Vault.
+     * This function returns a Long Running Operation poller that allows you to wait indefinitely until the secret is deleted.
+     *
+     * This operation requires the secrets/delete permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new SecretClient(url, credentials);
+     * await client.setSecret("MySecretName", "ABC123");
+     *
+     * const deletePoller = await client.beginDeleteSecret("MySecretName");
+     *
+     * // Serializing the poller
+     * const serialized = deletePoller.toString();
+     *
+     * // A new poller can be created with:
+     * // const newPoller = await client.beginDeleteSecret("MySecretName", { resumeFrom: serialized });
+     *
+     * // Waiting until it's done
+     * const deletedSecret = await deletePoller.pollUntilDone();
+     * console.log(deletedSecret);
+     * ```
+     * Deletes a secret from a specified key vault.
+     * @param secretName - The name of the secret.
+     * @param options - The optional parameters.
+     */
+    async beginDeleteSecret(name, options = {}) {
+        const poller = new DeleteSecretPoller(Object.assign(Object.assign({ name, client: this.client, vaultUrl: this.vaultUrl }, options), { operationOptions: options }));
+        // This will initialize the poller's operation (the deletion of the secret).
+        await poller.poll();
+        return poller;
+    }
+    /**
+     * The updateSecret method changes specified attributes of an existing stored secret. Properties that
+     * are not specified in the request are left unchanged. The value of a secret itself cannot be
+     * changed. This operation requires the secrets/set permission.
+     *
+     * Example usage:
+     * ```ts
+     * let secretName = "MySecretName";
+     * let client = new SecretClient(url, credentials);
+     * let secret = await client.getSecret(secretName);
+     * await client.updateSecretProperties(secretName, secret.properties.version, { enabled: false });
+     * ```
+     * Updates the attributes associated with a specified secret in a given key vault.
+     * @param secretName - The name of the secret.
+     * @param secretVersion - The version of the secret.
+     * @param options - The optional parameters.
+     */
+    async updateSecretProperties(secretName, secretVersion, options = {}) {
+        let unflattenedOptions = {};
+        if (options) {
+            const { enabled, notBefore, expiresOn: expires } = options, remainingOptions = tslib.__rest(options, ["enabled", "notBefore", "expiresOn"]);
+            unflattenedOptions = Object.assign(Object.assign({}, remainingOptions), { secretAttributes: {
+                    enabled,
+                    notBefore,
+                    expires,
+                } });
+        }
+        return tracingClient.withSpan("SecretClient.updateSecretProperties", unflattenedOptions, async (updatedOptions) => {
+            const response = await this.client.updateSecret(this.vaultUrl, secretName, secretVersion, updatedOptions);
+            return getSecretFromSecretBundle(response).properties;
+        });
+    }
+    /**
+     * The getSecret method is applicable to any secret stored in Azure Key Vault. This operation requires
+     * the secrets/get permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * let secret = await client.getSecret("MySecretName");
+     * ```
+     * Get a specified secret from a given key vault.
+     * @param secretName - The name of the secret.
+     * @param options - The optional parameters.
+     */
+    getSecret(secretName, options = {}) {
+        return tracingClient.withSpan("SecretClient.getSecret", options, async (updatedOptions) => {
+            const response = await this.client.getSecret(this.vaultUrl, secretName, options && options.version ? options.version : "", updatedOptions);
+            return getSecretFromSecretBundle(response);
+        });
+    }
+    /**
+     * The getDeletedSecret method returns the specified deleted secret along with its attributes.
+     * This operation requires the secrets/get permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * await client.getDeletedSecret("MyDeletedSecret");
+     * ```
+     * Gets the specified deleted secret.
+     * @param secretName - The name of the secret.
+     * @param options - The optional parameters.
+     */
+    getDeletedSecret(secretName, options = {}) {
+        return tracingClient.withSpan("SecretClient.getDeletedSecret", options, async (updatedOptions) => {
+            const response = await this.client.getDeletedSecret(this.vaultUrl, secretName, updatedOptions);
+            return getSecretFromSecretBundle(response);
+        });
+    }
+    /**
+     * The purge deleted secret operation removes the secret permanently, without the possibility of
+     * recovery. This operation can only be enabled on a soft-delete enabled vault. This operation
+     * requires the secrets/purge permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new SecretClient(url, credentials);
+     * const deletePoller = await client.beginDeleteSecret("MySecretName");
+     * await deletePoller.pollUntilDone();
+     * await client.purgeDeletedSecret("MySecretName");
+     * ```
+     * Permanently deletes the specified secret.
+     * @param secretName - The name of the secret.
+     * @param options - The optional parameters.
+     */
+    purgeDeletedSecret(secretName, options = {}) {
+        return tracingClient.withSpan("SecretClient.purgeDeletedSecret", options, async (updatedOptions) => {
+            await this.client.purgeDeletedSecret(this.vaultUrl, secretName, updatedOptions);
+        });
+    }
+    /**
+     * Recovers the deleted secret in the specified vault.
+     * This function returns a Long Running Operation poller that allows you to wait indefinitely until the secret is recovered.
+     *
+     * This operation requires the secrets/recover permission.
+     *
+     * Example usage:
+     * ```ts
+     * const client = new SecretClient(url, credentials);
+     * await client.setSecret("MySecretName", "ABC123");
+     *
+     * const deletePoller = await client.beginDeleteSecret("MySecretName");
+     * await deletePoller.pollUntilDone();
+     *
+     * const recoverPoller = await client.beginRecoverDeletedSecret("MySecretName");
+     *
+     * // Serializing the poller
+     * const serialized = recoverPoller.toString();
+     *
+     * // A new poller can be created with:
+     * // const newPoller = await client.beginRecoverDeletedSecret("MySecretName", { resumeFrom: serialized });
+     *
+     * // Waiting until it's done
+     * const deletedSecret = await recoverPoller.pollUntilDone();
+     * console.log(deletedSecret);
+     * ```
+     * Recovers the deleted secret to the latest version.
+     * @param secretName - The name of the deleted secret.
+     * @param options - The optional parameters.
+     */
+    async beginRecoverDeletedSecret(name, options = {}) {
+        const poller = new RecoverDeletedSecretPoller(Object.assign(Object.assign({ name, client: this.client, vaultUrl: this.vaultUrl }, options), { operationOptions: options }));
+        // This will initialize the poller's operation (the recovery of the deleted secret).
+        await poller.poll();
+        return poller;
+    }
+    /**
+     * Requests that a backup of the specified secret be downloaded to the client. All versions of the
+     * secret will be downloaded. This operation requires the secrets/backup permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * let backupResult = await client.backupSecret("MySecretName");
+     * ```
+     * Backs up the specified secret.
+     * @param secretName - The name of the secret.
+     * @param options - The optional parameters.
+     */
+    backupSecret(secretName, options = {}) {
+        return tracingClient.withSpan("SecretClient.backupSecret", options, async (updatedOptions) => {
+            const response = await this.client.backupSecret(this.vaultUrl, secretName, updatedOptions);
+            return response.value;
+        });
+    }
+    /**
+     * Restores a backed up secret, and all its versions, to a vault. This operation requires the
+     * secrets/restore permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * let mySecretBundle = await client.backupSecret("MySecretName");
+     * // ...
+     * await client.restoreSecretBackup(mySecretBundle);
+     * ```
+     * Restores a backed up secret to a vault.
+     * @param secretBundleBackup - The backup blob associated with a secret bundle.
+     * @param options - The optional parameters.
+     */
+    restoreSecretBackup(secretBundleBackup, options = {}) {
+        return tracingClient.withSpan("SecretClient.restoreSecretBackup", options, async (updatedOptions) => {
+            const response = await this.client.restoreSecret(this.vaultUrl, secretBundleBackup, updatedOptions);
+            return getSecretFromSecretBundle(response).properties;
+        });
+    }
+    /**
+     * Deals with the pagination of {@link listPropertiesOfSecretVersions}.
+     * @param name - The name of the KeyVault Secret.
+     * @param continuationState - An object that indicates the position of the paginated request.
+     * @param options - Optional parameters for the underlying HTTP request.
+     */
+    listPropertiesOfSecretVersionsPage(secretName, continuationState, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfSecretVersionsPage_1() {
+            if (continuationState.continuationToken == null) {
+                const optionsComplete = Object.assign({ maxresults: continuationState.maxPageSize }, options);
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("SecretClient.listPropertiesOfSecretVersionsPage", optionsComplete, (updatedOptions) => this.client.getSecretVersions(this.vaultUrl, secretName, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map((bundle) => getSecretFromSecretBundle(bundle).properties));
+                }
+            }
+            while (continuationState.continuationToken) {
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("SecretClient.listPropertiesOfSecretVersionsPage", options, (updatedOptions) => this.client.getSecretVersionsNext(this.vaultUrl, secretName, continuationState.continuationToken, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map((bundle) => getSecretFromSecretBundle(bundle).properties));
+                }
+                else {
+                    break;
+                }
+            }
+        });
+    }
+    /**
+     * Deals with the iteration of all the available results of {@link listPropertiesOfSecretVersions}.
+     * @param name - The name of the KeyVault Secret.
+     * @param options - Optional parameters for the underlying HTTP request.
+     */
+    listPropertiesOfSecretVersionsAll(secretName, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfSecretVersionsAll_1() {
+            var e_1, _a;
+            const f = {};
+            try {
+                for (var _b = tslib.__asyncValues(this.listPropertiesOfSecretVersionsPage(secretName, f, options)), _c; _c = yield tslib.__await(_b.next()), !_c.done;) {
+                    const page = _c.value;
+                    for (const item of page) {
+                        yield yield tslib.__await(item);
+                    }
+                }
+            }
+            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) yield tslib.__await(_a.call(_b));
+                }
+                finally { if (e_1) throw e_1.error; }
+            }
+        });
+    }
+    /**
+     * Iterates all versions of the given secret in the vault. The full secret identifier and attributes are provided
+     * in the response. No values are returned for the secrets. This operations requires the secrets/list permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * for await (const secretProperties of client.listPropertiesOfSecretVersions("MySecretName")) {
+     *   const secret = await client.getSecret(secretProperties.name);
+     *   console.log("secret version: ", secret);
+     * }
+     * ```
+     * @param secretName - Name of the secret to fetch versions for.
+     * @param options - The optional parameters.
+     */
+    listPropertiesOfSecretVersions(secretName, options = {}) {
+        const iter = this.listPropertiesOfSecretVersionsAll(secretName, options);
+        return {
+            next() {
+                return iter.next();
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            byPage: (settings = {}) => this.listPropertiesOfSecretVersionsPage(secretName, settings, options),
+        };
+    }
+    /**
+     * Deals with the pagination of {@link listPropertiesOfSecrets}.
+     * @param continuationState - An object that indicates the position of the paginated request.
+     * @param options - Optional parameters for the underlying HTTP request.
+     */
+    listPropertiesOfSecretsPage(continuationState, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfSecretsPage_1() {
+            if (continuationState.continuationToken == null) {
+                const optionsComplete = Object.assign({ maxresults: continuationState.maxPageSize }, options);
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("SecretClient.listPropertiesOfSecretsPage", optionsComplete, (updatedOptions) => this.client.getSecrets(this.vaultUrl, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map((bundle) => getSecretFromSecretBundle(bundle).properties));
+                }
+            }
+            while (continuationState.continuationToken) {
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("SecretClient.listPropertiesOfSecretsPage", options, (updatedOptions) => this.client.getSecretsNext(this.vaultUrl, continuationState.continuationToken, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map((bundle) => getSecretFromSecretBundle(bundle).properties));
+                }
+                else {
+                    break;
+                }
+            }
+        });
+    }
+    /**
+     * Deals with the iteration of all the available results of {@link listPropertiesOfSecrets}.
+     * @param options - Optional parameters for the underlying HTTP request.
+     */
+    listPropertiesOfSecretsAll(options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listPropertiesOfSecretsAll_1() {
+            var e_2, _a;
+            const f = {};
+            try {
+                for (var _b = tslib.__asyncValues(this.listPropertiesOfSecretsPage(f, options)), _c; _c = yield tslib.__await(_b.next()), !_c.done;) {
+                    const page = _c.value;
+                    for (const item of page) {
+                        yield yield tslib.__await(item);
+                    }
+                }
+            }
+            catch (e_2_1) { e_2 = { error: e_2_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) yield tslib.__await(_a.call(_b));
+                }
+                finally { if (e_2) throw e_2.error; }
+            }
+        });
+    }
+    /**
+     * Iterates the latest version of all secrets in the vault.  The full secret identifier and attributes are provided
+     * in the response. No values are returned for the secrets. This operations requires the secrets/list permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * for await (const secretProperties of client.listPropertiesOfSecrets()) {
+     *   const secret = await client.getSecret(secretProperties.name);
+     *   console.log("secret: ", secret);
+     * }
+     * ```
+     * List all secrets in the vault.
+     * @param options - The optional parameters.
+     */
+    listPropertiesOfSecrets(options = {}) {
+        const iter = this.listPropertiesOfSecretsAll(options);
+        return {
+            next() {
+                return iter.next();
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            byPage: (settings = {}) => this.listPropertiesOfSecretsPage(settings, options),
+        };
+    }
+    /**
+     * Deals with the pagination of {@link listDeletedSecrets}.
+     * @param continuationState - An object that indicates the position of the paginated request.
+     * @param options - Optional parameters for the underlying HTTP request.
+     */
+    listDeletedSecretsPage(continuationState, options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listDeletedSecretsPage_1() {
+            if (continuationState.continuationToken == null) {
+                const optionsComplete = Object.assign({ maxresults: continuationState.maxPageSize }, options);
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("SecretClient.listDeletedSecretsPage", optionsComplete, (updatedOptions) => this.client.getDeletedSecrets(this.vaultUrl, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map((bundle) => getSecretFromSecretBundle(bundle)));
+                }
+            }
+            while (continuationState.continuationToken) {
+                const currentSetResponse = yield tslib.__await(tracingClient.withSpan("SecretClient.lisDeletedSecretsPage", options, (updatedOptions) => this.client.getDeletedSecretsNext(this.vaultUrl, continuationState.continuationToken, updatedOptions)));
+                continuationState.continuationToken = currentSetResponse.nextLink;
+                if (currentSetResponse.value) {
+                    yield yield tslib.__await(currentSetResponse.value.map((bundle) => getSecretFromSecretBundle(bundle)));
+                }
+                else {
+                    break;
+                }
+            }
+        });
+    }
+    /**
+     * Deals with the iteration of all the available results of {@link listDeletedSecrets}.
+     * @param options - Optional parameters for the underlying HTTP request.
+     */
+    listDeletedSecretsAll(options = {}) {
+        return tslib.__asyncGenerator(this, arguments, function* listDeletedSecretsAll_1() {
+            var e_3, _a;
+            const f = {};
+            try {
+                for (var _b = tslib.__asyncValues(this.listDeletedSecretsPage(f, options)), _c; _c = yield tslib.__await(_b.next()), !_c.done;) {
+                    const page = _c.value;
+                    for (const item of page) {
+                        yield yield tslib.__await(item);
+                    }
+                }
+            }
+            catch (e_3_1) { e_3 = { error: e_3_1 }; }
+            finally {
+                try {
+                    if (_c && !_c.done && (_a = _b.return)) yield tslib.__await(_a.call(_b));
+                }
+                finally { if (e_3) throw e_3.error; }
+            }
+        });
+    }
+    /**
+     * Iterates the deleted secrets in the vault.  The full secret identifier and attributes are provided
+     * in the response. No values are returned for the secrets. This operations requires the secrets/list permission.
+     *
+     * Example usage:
+     * ```ts
+     * let client = new SecretClient(url, credentials);
+     * for await (const deletedSecret of client.listDeletedSecrets()) {
+     *   console.log("deleted secret: ", deletedSecret);
+     * }
+     * ```
+     * List all secrets in the vault.
+     * @param options - The optional parameters.
+     */
+    listDeletedSecrets(options = {}) {
+        const iter = this.listDeletedSecretsAll(options);
+        return {
+            next() {
+                return iter.next();
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            byPage: (settings = {}) => this.listDeletedSecretsPage(settings, options),
+        };
+    }
+}
+
+exports.SecretClient = SecretClient;
+exports.logger = logger;
+exports.parseKeyVaultSecretIdentifier = parseKeyVaultSecretIdentifier;
 //# sourceMappingURL=index.js.map
 
 
@@ -22311,14 +30639,150 @@ function LoadConfigurationFromFile(path) {
     const configSource = JSON.parse(file.toString());
     const configMapped = {
         defaults: configSource.defaults,
-        resources: configSource.resources.map(src => ({
-            ...configSource.defaults,
-            ...src
-        }))
+        resources: new Map(Array.from(configSource.resources.entries()).map(entry => [
+            entry[0],
+            {
+                ...configSource.defaults,
+                ...entry[1]
+            }
+        ]))
     };
     return configMapped;
 }
 exports.LoadConfigurationFromFile = LoadConfigurationFromFile;
+
+
+/***/ }),
+
+/***/ 1906:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ImportCertificate = exports.GetCertificateIfExists = exports.UpdateSecret = exports.GetSecretIfExists = exports.GetCertificateClient = exports.GetSecretClient = void 0;
+const keyvault_certificates_1 = __nccwpck_require__(2549);
+const keyvault_secrets_1 = __nccwpck_require__(181);
+// Keep track of clients we've created so far and reuse them
+const secretClients = new Map();
+const certificateClients = new Map();
+/**
+ * Gets a cached client or constructs and caches a new one for a Key Vault.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @returns The key vault client for secrets
+ */
+function GetSecretClient(keyVault, credential) {
+    const cached = secretClients.get(keyVault);
+    if (cached)
+        return cached;
+    const newClient = new keyvault_secrets_1.SecretClient(`https://${keyVault}.vault.azure.net`, credential);
+    secretClients.set(keyVault, newClient);
+    return newClient;
+}
+exports.GetSecretClient = GetSecretClient;
+/**
+ * Gets a cached client or constructs and caches a new one for a Key Vault.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @returns The key vault client for certificates
+ */
+function GetCertificateClient(keyVault, credential) {
+    const cached = certificateClients.get(keyVault);
+    if (cached)
+        return cached;
+    const newClient = new keyvault_certificates_1.CertificateClient(`https://${keyVault}.vault.azure.net`, credential);
+    certificateClients.set(keyVault, newClient);
+    return newClient;
+}
+exports.GetCertificateClient = GetCertificateClient;
+/**
+ * Gets the value of a secret if it exists.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @param name - Name of the secret to get
+ * @returns The secret if it exists, otherwise `undefined`
+ */
+async function GetSecretIfExists(keyVault, credential, name) {
+    const client = GetSecretClient(keyVault, credential);
+    let foundSecrets = 0;
+    for await (const found of client.listPropertiesOfSecretVersions(name)) {
+        if (found.enabled)
+            foundSecrets++;
+    }
+    if (foundSecrets > 0) {
+        return await client.getSecret(name);
+    }
+    return undefined;
+}
+exports.GetSecretIfExists = GetSecretIfExists;
+/**
+ * Update the value of a secret.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @param name - Name of the secret to get
+ * @param value - Value of the secret to set
+ * @param expiration - Expiration of the secret
+ * @param contentType - Content type of the secret (default text/plain)
+ * @returns The updated secret details
+ */
+async function UpdateSecret(keyVault, credential, name, value, expiration, contentType) {
+    const client = GetSecretClient(keyVault, credential);
+    const result = await client.setSecret(name, value, {
+        contentType: contentType ?? 'text/plain',
+        expiresOn: expiration
+    });
+    return result;
+}
+exports.UpdateSecret = UpdateSecret;
+/**
+ * Gets the value of a certificate if it exists.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @param name - Name of the secret to get
+ * @returns The secret if it exists, otherwise `undefined`
+ */
+async function GetCertificateIfExists(keyVault, credential, name) {
+    const client = GetCertificateClient(keyVault, credential);
+    let foundSecrets = 0;
+    for await (const found of client.listPropertiesOfCertificateVersions(name)) {
+        if (found.enabled)
+            foundSecrets++;
+    }
+    if (foundSecrets > 0) {
+        return await client.getCertificate(name);
+    }
+    return undefined;
+}
+exports.GetCertificateIfExists = GetCertificateIfExists;
+/**
+ * Import certificate.
+ *
+ * @param keyVault - Name of the key vault to use
+ * @param credential - Azure credential to use
+ * @param name - Name of the certificate to update
+ * @param value - Value of the certificate to set
+ * @param password - Password of the source certificate if set (use empty string for no password)
+ * @param contentType - Content type of the secret (default application/x-pkcs12)
+ * @returns The updated secret details
+ */
+async function ImportCertificate(keyVault, credential, name, value, password = '') {
+    const client = GetCertificateClient(keyVault, credential);
+    const result = await client.importCertificate(name, value, {
+        password,
+        policy: {
+            exportable: true,
+            contentType: 'application/x-pkcs12'
+        }
+    });
+    return result;
+}
+exports.ImportCertificate = ImportCertificate;
 
 
 /***/ }),
@@ -22356,6 +30820,8 @@ exports.run = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const cfg = __importStar(__nccwpck_require__(1371));
 const identity_1 = __nccwpck_require__(3084);
+const operation_settings_1 = __nccwpck_require__(2769);
+const manual_secret_1 = __nccwpck_require__(901);
 /**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
@@ -22372,8 +30838,19 @@ async function run() {
             secretValue2: core.getInput('secret-value-2'),
             credential: new identity_1.DefaultAzureCredential()
         };
+        const targetResources = (0, operation_settings_1.ParseResourceList)(settings.resourcesFilter);
+        // prepare all the supported operations
+        const operations = [new manual_secret_1.ManualSecretOperation(settings)];
         core.info(settings.operation);
         core.info(configuration.resources.keys.toString());
+        // find operation
+        const operationsFound = operations.filter(o => o.operation === settings.operation);
+        if (operationsFound.length === 0) {
+            core.setFailed(`No operation matching '${settings.operation}' was found`);
+            return;
+        }
+        // run the operation
+        await operationsFound[0].Run(configuration, targetResources);
     }
     catch (error) {
         // Fail the workflow run if an error occurs
@@ -22382,6 +30859,331 @@ async function run() {
     }
 }
 exports.run = run;
+
+
+/***/ }),
+
+/***/ 2769:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ParseResourceList = void 0;
+function ParseResourceList(resourcesFilter) {
+    if (resourcesFilter === '*')
+        return [];
+    return resourcesFilter.split(',');
+}
+exports.ParseResourceList = ParseResourceList;
+
+
+/***/ }),
+
+/***/ 3791:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Operation = void 0;
+class Operation {
+    operation;
+    settings;
+    constructor(operation, settings) {
+        this.operation = operation;
+        this.settings = settings;
+    }
+}
+exports.Operation = Operation;
+
+
+/***/ }),
+
+/***/ 901:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ManualSecretOperation = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const abstract_operation_1 = __nccwpck_require__(3791);
+const manual_secret_1 = __nccwpck_require__(4368);
+class ManualSecretOperation extends abstract_operation_1.Operation {
+    constructor(settings) {
+        super('manual-secret', settings);
+    }
+    async Run(configuration, targetResources) {
+        if (targetResources.length !== 1 || targetResources[0] === '*') {
+            core.setFailed('Manual secret can only operate on a single resource at a time');
+            return;
+        }
+        const manual = new manual_secret_1.ManualSecretRotator(this.settings);
+        const resource = configuration.resources.get(targetResources[0]);
+        if (!resource) {
+            core.setFailed(`Resource '${targetResources[0]}' was not found in the configuration file`);
+            return;
+        }
+        const result = await manual.Rotate(targetResources[0], manual.ApplyDefaults(resource));
+        if (result.rotated) {
+            core.info(`Resource '${targetResources[0]}' was rotated`);
+        }
+        else {
+            core.warning(`Resource '${targetResources[0]}' was NOT rotated: ${result.notes}`);
+        }
+    }
+}
+exports.ManualSecretOperation = ManualSecretOperation;
+
+
+/***/ }),
+
+/***/ 2233:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Rotator = void 0;
+const shared_1 = __nccwpck_require__(2492);
+const key_vault_1 = __nccwpck_require__(1906);
+class Rotator {
+    type;
+    secretType;
+    settings;
+    constructor(type, secretType, settings) {
+        this.type = type;
+        this.secretType = secretType;
+        this.settings = settings;
+    }
+    ApplyDefaults(resource) {
+        return {
+            name: resource.name ?? '',
+            contentType: resource.contentType ??
+                (this.secretType === 'certificate'
+                    ? 'application/x-pkcs12'
+                    : 'text/plain'),
+            // by default, certificates are base64 encoded and should be decoded. Secrets may not be.
+            decodeBase64: resource.decodeBase64 ?? this.secretType === 'certificate',
+            expirationDays: resource.expirationDays,
+            expirationOverlapDays: resource.expirationOverlapDays ?? 0,
+            keyVault: resource.keyVault ?? '',
+            keyVaultSecretPrefix: resource.keyVaultSecretPrefix ?? '',
+            resourceGroup: resource.resourceGroup ?? '',
+            type: resource.type ?? ''
+        };
+    }
+    async Initialize(configurationId, resource) {
+        const scrubbedResource = this.ApplyDefaults(resource);
+        const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId;
+        if (this.secretType === 'secret') {
+            const secretFound = await (0, key_vault_1.GetSecretIfExists)(scrubbedResource.keyVault, this.settings.credential, secretName);
+            if (secretFound && !this.settings.force) {
+                return new shared_1.RotationResult(configurationId, false, 'Secret already initialized', { secretName });
+            }
+        }
+        else if (this.secretType === 'certificate') {
+            const certificateFound = await (0, key_vault_1.GetCertificateIfExists)(scrubbedResource.keyVault, this.settings.credential, secretName);
+            if (certificateFound && !this.settings.force) {
+                return new shared_1.RotationResult(configurationId, false, 'Secret already initialized', { secretName });
+            }
+        }
+        // all good, perform initialization
+        try {
+            const result = await this.PerformInitialization(configurationId, scrubbedResource, secretName);
+            return result;
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                return new shared_1.RotationResult(configurationId, false, error.message, {
+                    error: JSON.stringify(error)
+                });
+            }
+            else {
+                return new shared_1.RotationResult(configurationId, false, '', {
+                    error: JSON.stringify(error)
+                });
+            }
+        }
+    }
+    async Rotate(configurationId, resource) {
+        const scrubbedResource = this.ApplyDefaults(resource);
+        const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId;
+        if (this.secretType === 'secret') {
+            const secretFound = await (0, key_vault_1.GetSecretIfExists)(scrubbedResource.keyVault, this.settings.credential, secretName);
+            if (!secretFound) {
+                // don't rotate, secret wasn't initialized yet
+                return new shared_1.RotationResult(configurationId, false, 'Secret was not yet initialized', { secretName });
+            }
+            if (!this.settings.force &&
+                !(0, shared_1.ShouldRotate)(secretFound.properties.expiresOn, scrubbedResource.expirationOverlapDays)) {
+                // not time to rotate yet, and not forced
+                return new shared_1.RotationResult(configurationId, false, 'Not time to rotate yet', {
+                    expiration: secretFound.properties.expiresOn,
+                    expirationOverlapDays: scrubbedResource.expirationOverlapDays
+                });
+            }
+        }
+        else if (this.secretType === 'certificate') {
+            const certificateFound = await (0, key_vault_1.GetCertificateIfExists)(scrubbedResource.keyVault, this.settings.credential, secretName);
+            if (!certificateFound) {
+                // don't rotate, secret wasn't initialized yet
+                return new shared_1.RotationResult(configurationId, false, 'Secret was not yet initialized', { secretName });
+            }
+            if (!this.settings.force &&
+                !(0, shared_1.ShouldRotate)(certificateFound.properties.expiresOn, scrubbedResource.expirationOverlapDays)) {
+                // not time to rotate yet, and not forced
+                return new shared_1.RotationResult(configurationId, false, 'Not time to rotate yet', {
+                    expiration: certificateFound.properties.expiresOn,
+                    expirationOverlapDays: scrubbedResource.expirationOverlapDays
+                });
+            }
+        }
+        // all good, lets rotate!
+        try {
+            const result = await this.PerformRotation(configurationId, scrubbedResource, secretName);
+            return result;
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                return new shared_1.RotationResult(configurationId, false, error.message, {
+                    error: JSON.stringify(error)
+                });
+            }
+            else {
+                return new shared_1.RotationResult(configurationId, false, '', {
+                    error: JSON.stringify(error)
+                });
+            }
+        }
+    }
+}
+exports.Rotator = Rotator;
+
+
+/***/ }),
+
+/***/ 4368:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ManualSecretRotator = void 0;
+const key_vault_1 = __nccwpck_require__(1906);
+const shared_1 = __nccwpck_require__(2492);
+const abstract_rotator_1 = __nccwpck_require__(2233);
+const util_1 = __nccwpck_require__(2629);
+class ManualSecretRotator extends abstract_rotator_1.Rotator {
+    constructor(settings) {
+        super('manual/generic', 'secret', settings);
+    }
+    async PerformRotation(configurationId, resource, secretName) {
+        const newExpiration = (0, util_1.AddDays)(new Date(Date.now()), resource.expirationDays);
+        const value = resource.decodeBase64
+            ? Buffer.from(this.settings.secretValue1, 'base64')
+            : Buffer.from(this.settings.secretValue1);
+        const result = await (0, key_vault_1.UpdateSecret)(resource.keyVault, this.settings.credential, secretName, value.toString(), newExpiration, resource.contentType);
+        return new shared_1.RotationResult(configurationId, true, '', {
+            id: result.properties.id,
+            expiration: result.properties.expiresOn
+        });
+    }
+    async PerformInitialization(configurationId, resource, secretName) {
+        return await this.PerformRotation(configurationId, resource, secretName);
+    }
+}
+exports.ManualSecretRotator = ManualSecretRotator;
+
+
+/***/ }),
+
+/***/ 2492:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RotationResult = exports.ShouldRotate = void 0;
+const util_1 = __nccwpck_require__(2629);
+function ShouldRotate(secretExpiration, expirationOverlapDays) {
+    // when there is no expiration, don't automatically rotate
+    if (!secretExpiration)
+        return false;
+    // if not specified, then rotate secrets when they are expiring or expired (not recommended)
+    expirationOverlapDays ??= 0;
+    // dates are stored in milliseconds, so subtract and convert to days, rounded down
+    const daysToExpire = Math.floor((0, util_1.DiffDays)(new Date(Date.now()), secretExpiration));
+    return daysToExpire <= expirationOverlapDays;
+}
+exports.ShouldRotate = ShouldRotate;
+class RotationResult {
+    name;
+    rotated;
+    notes;
+    context;
+    constructor(name, rotated, notes = '', context = {}) {
+        this.name = name;
+        this.rotated = rotated;
+        this.notes = notes;
+        this.context = context;
+    }
+}
+exports.RotationResult = RotationResult;
+
+
+/***/ }),
+
+/***/ 2629:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ActionError = exports.DiffDays = exports.AddDays = void 0;
+const millisecondsPerDay = 24 * 60 * 60 * 1000;
+function AddDays(start, days) {
+    return new Date(start.valueOf() + days * millisecondsPerDay);
+}
+exports.AddDays = AddDays;
+function DiffDays(from, to) {
+    return (to.valueOf() - from.valueOf()) / millisecondsPerDay;
+}
+exports.DiffDays = DiffDays;
+class ActionError extends Error {
+    context;
+    constructor(message, options = {}) {
+        const { cause, context } = options;
+        super(message, { cause });
+        this.name = this.constructor.name;
+        this.context = context;
+    }
+}
+exports.ActionError = ActionError;
 
 
 /***/ }),
