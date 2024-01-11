@@ -30822,6 +30822,7 @@ const cfg = __importStar(__nccwpck_require__(1371));
 const identity_1 = __nccwpck_require__(3084);
 const operation_settings_1 = __nccwpck_require__(2769);
 const manual_secret_1 = __nccwpck_require__(901);
+const nothing_operation_1 = __nccwpck_require__(5876);
 /**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
@@ -30840,7 +30841,10 @@ async function run() {
         };
         const targetResources = (0, operation_settings_1.ParseResourceList)(settings.resourcesFilter);
         // prepare all the supported operations
-        const operations = [new manual_secret_1.ManualSecretOperation(settings)];
+        const operations = [
+            new nothing_operation_1.NothingOperation(settings),
+            new manual_secret_1.ManualSecretOperation(settings)
+        ];
         core.info(settings.operation);
         core.info(configuration.resources.keys.toString());
         // find operation
@@ -30958,6 +30962,29 @@ class ManualSecretOperation extends abstract_operation_1.Operation {
     }
 }
 exports.ManualSecretOperation = ManualSecretOperation;
+
+
+/***/ }),
+
+/***/ 5876:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NothingOperation = void 0;
+const abstract_operation_1 = __nccwpck_require__(3791);
+class NothingOperation extends abstract_operation_1.Operation {
+    constructor(settings) {
+        super('nothing', settings);
+    }
+    async Run(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    configuration, 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    targetResources) { }
+}
+exports.NothingOperation = NothingOperation;
 
 
 /***/ }),

@@ -4,6 +4,7 @@ import { DefaultAzureCredential } from '@azure/identity'
 import { OperationSettings, ParseResourceList } from './operation-settings'
 import { ManualSecretOperation } from './operations/manual-secret'
 import { Operation } from './operations/abstract-operation'
+import { NothingOperation } from './operations/nothing-operation'
 
 /**
  * The main function for the action.
@@ -27,7 +28,10 @@ export async function run(): Promise<void> {
     const targetResources = ParseResourceList(settings.resourcesFilter)
 
     // prepare all the supported operations
-    const operations: Operation[] = [new ManualSecretOperation(settings)]
+    const operations: Operation[] = [
+      new NothingOperation(settings),
+      new ManualSecretOperation(settings)
+    ]
 
     core.info(settings.operation)
     core.info(configuration.resources.keys.toString())

@@ -56,7 +56,7 @@ jobs:
         uses: ./
         with:
           configuration: ./.github/workflows/ci-config.json
-          operation: unsupported
+          operation: nothing
 
       - name: Print Output
         id: output
