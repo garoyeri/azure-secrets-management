@@ -14,7 +14,7 @@ export type ManagedResource = {
 
 export type ConfigurationFile = {
   defaults: Partial<ManagedResource>
-  resources: Partial<ManagedResource>[]
+  resources: Map<string, Partial<ManagedResource>>
 }
 
 export function LoadConfigurationFromFile(path: string): ConfigurationFile {
@@ -22,10 +22,15 @@ export function LoadConfigurationFromFile(path: string): ConfigurationFile {
   const configSource = JSON.parse(file.toString()) as ConfigurationFile
   const configMapped = {
     defaults: configSource.defaults,
-    resources: configSource.resources.map(src => ({
-      ...configSource.defaults,
-      ...src
-    }))
+    resources: new Map<string, Partial<ManagedResource>>(
+      Array.from(configSource.resources.entries()).map(entry => [
+        entry[0],
+        {
+          ...configSource.defaults,
+          ...entry[1]
+        }
+      ])
+    )
   }
 
   return configMapped
