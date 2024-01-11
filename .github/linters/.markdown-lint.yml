@@ -2,6 +2,8 @@
 MD004:
   style: dash
 
+MD013: false
+
 # Ordered list item prefix
 MD029:
   style: one

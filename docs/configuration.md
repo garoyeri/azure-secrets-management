@@ -181,7 +181,7 @@ Make any desired adjustments and run the initialization operation when you're re
 
 ### Configuration Reference
 
-* `defaults`: these key value pairs will be applied by default to all resources in the configuration.
+* `defaults`: these key-value pairs will be applied by default to all resources in the configuration.
 * `resources`: these are the resources that should be configured to be rotated.
 
 For each `resource`, there is a name identifier which is used by the action to identify resources when the `resources` filter is used to call the action. These must be unique within a configuration file.
