@@ -23,7 +23,11 @@ export abstract class Rotator {
   ApplyDefaults(resource: Partial<ManagedResource>): ManagedResource {
     return {
       name: resource.name ?? '',
-      contentType: resource.contentType ?? 'text/plain',
+      contentType:
+        resource.contentType ??
+        (this.secretType === 'certificate'
+          ? 'application/x-pkcs12'
+          : 'text/plain'),
       // by default, certificates are base64 encoded and should be decoded. Secrets may not be.
       decodeBase64: resource.decodeBase64 ?? this.secretType === 'certificate',
       expirationDays: resource.expirationDays,
