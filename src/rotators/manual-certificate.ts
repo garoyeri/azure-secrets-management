@@ -31,4 +31,12 @@ export class ManualCertificateRotator extends Rotator {
       expiration: result.properties.expiresOn
     })
   }
+
+  protected async PerformInitialization(
+    configurationId: string,
+    resource: ManagedResource,
+    secretName: string
+  ): Promise<RotationResult> {
+    return await this.PerformRotation(configurationId, resource, secretName)
+  }
 }

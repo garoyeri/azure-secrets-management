@@ -39,6 +39,67 @@ export abstract class Rotator {
     } as ManagedResource
   }
 
+  async Initialize(
+    configurationId: string,
+    resource: ManagedResource
+  ): Promise<RotationResult> {
+    const scrubbedResource = this.ApplyDefaults(resource)
+
+    const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
+
+    if (this.secretType === 'secret') {
+      const secretFound = await GetSecretIfExists(
+        scrubbedResource.keyVault,
+        this.settings.credential,
+        secretName
+      )
+
+      if (secretFound && !this.settings.force) {
+        return new RotationResult(
+          configurationId,
+          false,
+          'Secret already initialized',
+          { secretName }
+        )
+      }
+    } else if (this.secretType === 'certificate') {
+      const certificateFound = await GetCertificateIfExists(
+        scrubbedResource.keyVault,
+        this.settings.credential,
+        secretName
+      )
+
+      if (certificateFound && !this.settings.force) {
+        return new RotationResult(
+          configurationId,
+          false,
+          'Secret already initialized',
+          { secretName }
+        )
+      }
+    }
+
+    // all good, perform initialization
+    try {
+      const result = await this.PerformInitialization(
+        configurationId,
+        scrubbedResource,
+        secretName
+      )
+      return result
+    } catch (error) {
+      if (error instanceof Error) {
+        return new RotationResult(configurationId, false, error.message, {
+          error: JSON.stringify(error)
+        })
+      } else {
+        return new RotationResult(configurationId, false, '', {
+          error: JSON.stringify(error)
+        })
+      }
+    }
+  }
+
   async Rotate(
     configurationId: string,
     resource: ManagedResource
@@ -139,6 +200,12 @@ export abstract class Rotator {
       }
     }
   }
+
+  protected abstract PerformInitialization(
+    configurationId: string,
+    resource: ManagedResource,
+    secretName: string
+  ): Promise<RotationResult>
 
   protected abstract PerformRotation(
     configurationId: string,
