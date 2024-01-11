@@ -23,13 +23,15 @@ export function LoadConfigurationFromFile(path: string): ConfigurationFile {
   const configMapped = {
     defaults: configSource.defaults,
     resources: new Map<string, Partial<ManagedResource>>(
-      Array.from(configSource.resources.entries()).map(entry => [
-        entry[0],
-        {
-          ...configSource.defaults,
-          ...entry[1]
-        }
-      ])
+      Array.from(
+        Object.entries(configSource.resources).map(entry => [
+          entry[0],
+          {
+            ...configSource.defaults,
+            ...entry[1]
+          }
+        ])
+      )
     )
   }
 

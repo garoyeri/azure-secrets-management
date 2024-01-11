@@ -1,0 +1,29 @@
+{
+    "defaults": {
+        "resourceGroup": "resourceGroup1",
+        "keyVaultResourceGroup": "resourceGroup1",
+        "keyVault": "vault1",
+        "keyVaultSecretPrefix": "",
+        "expirationDays": 90,
+        "expirationOverlapDays": 30
+    },
+    "resources": {
+        "storage1": {
+            "type": "azure/storage-account",
+            "name": "storageaccountname"
+        },
+        "databaseServer1": {
+            "type": "azure/postgresql-flexible-server",
+            "name": "serverName1"
+        },
+        "databaseApplication1": {
+            "type": "azure/postgresql-flexible-server/user",
+            "name": "app1",
+            "serverName": "databaseServer1",
+            "roles": [
+                "ROLE1",
+                "ROLE2"
+            ]
+        }
+    }
+}

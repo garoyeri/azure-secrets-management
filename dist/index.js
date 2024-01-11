@@ -30639,13 +30639,13 @@ function LoadConfigurationFromFile(path) {
     const configSource = JSON.parse(file.toString());
     const configMapped = {
         defaults: configSource.defaults,
-        resources: new Map(Array.from(configSource.resources.entries()).map(entry => [
+        resources: new Map(Array.from(Object.entries(configSource.resources).map(entry => [
             entry[0],
             {
                 ...configSource.defaults,
                 ...entry[1]
             }
-        ]))
+        ])))
     };
     return configMapped;
 }
