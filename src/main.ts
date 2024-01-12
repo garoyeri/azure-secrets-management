@@ -5,6 +5,7 @@ import { OperationSettings, ParseResourceList } from './operation-settings'
 import { ManualSecretOperation } from './operations/manual-secret'
 import { Operation } from './operations/abstract-operation'
 import { NothingOperation } from './operations/nothing-operation'
+import * as rotators from './rotators/rotators'
 
 /**
  * The main function for the action.
@@ -32,6 +33,9 @@ export async function run(): Promise<void> {
       new NothingOperation(settings),
       new ManualSecretOperation(settings)
     ]
+
+    // prepare rotators
+    rotators.Setup(settings)
 
     core.info(settings.operation)
     core.info(configuration.resources.keys.toString())
