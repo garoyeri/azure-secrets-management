@@ -3,6 +3,7 @@ import { OperationSettings } from '../operation-settings'
 import { UpdateSecret } from '../key-vault'
 import { RotationResult } from './shared'
 import { Rotator } from './abstract-rotator'
+import { AddDays } from '../util'
 
 export class ManualSecretRotator extends Rotator {
   constructor(settings: OperationSettings) {
@@ -14,13 +15,17 @@ export class ManualSecretRotator extends Rotator {
     resource: ManagedResource,
     secretName: string
   ): Promise<RotationResult> {
-    const newExpiration = resource.expirationDays
-      ? new Date(Date.now() + resource.expirationDays * 24 * 60 * 60 * 1000)
-      : undefined
+    const newExpiration = AddDays(new Date(Date.now()), resource.expirationDays)
 
     const value = resource.decodeBase64
       ? Buffer.from(this.settings.secretValue1, 'base64')
       : Buffer.from(this.settings.secretValue1)
+
+    if (this.settings.whatIf) {
+      return new RotationResult(configurationId, true, 'what-if', {
+        expiration: newExpiration
+      })
+    }
 
     const result = await UpdateSecret(
       resource.keyVault,
@@ -35,5 +40,13 @@ export class ManualSecretRotator extends Rotator {
       id: result.properties.id,
       expiration: result.properties.expiresOn
     })
+  }
+
+  protected async PerformInitialization(
+    configurationId: string,
+    resource: ManagedResource,
+    secretName: string
+  ): Promise<RotationResult> {
+    return await this.PerformRotation(configurationId, resource, secretName)
   }
 }

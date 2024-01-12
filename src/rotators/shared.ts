@@ -1,4 +1,4 @@
-import { Jsonable } from '../util'
+import { DiffDays, Jsonable } from '../util'
 
 export function ShouldRotate(
   secretExpiration?: Date,
@@ -12,7 +12,7 @@ export function ShouldRotate(
 
   // dates are stored in milliseconds, so subtract and convert to days, rounded down
   const daysToExpire = Math.floor(
-    (secretExpiration.valueOf() - Date.now()) / (1000 * 60 * 60 * 24)
+    DiffDays(new Date(Date.now()), secretExpiration)
   )
 
   return daysToExpire <= expirationOverlapDays

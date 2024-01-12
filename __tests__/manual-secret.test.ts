@@ -24,24 +24,147 @@ afterEach(() => {
   jest.restoreAllMocks()
 })
 
-describe('manual-secret.ts', () => {
-  it('does not rotate when secret is uninitialized', async () => {
-    const settings = {
-      credential: new DefaultAzureCredential(),
-      force: false,
-      operation: '',
-      resourcesFilter: '*',
-      secretValue1: 'abcdefgh',
-      whatIf: false
-    } as OperationSettings
-    const manual = new ManualSecretRotator(settings)
-    const resource = {
+function setup(): {
+  settings: OperationSettings
+  manual: ManualSecretRotator
+  resource: Partial<ManagedResource>
+} {
+  const settings = {
+    credential: new DefaultAzureCredential(),
+    force: false,
+    operation: '',
+    resourcesFilter: '*',
+    secretValue1: 'abcdefgh',
+    whatIf: false
+  } as OperationSettings
+
+  return {
+    settings,
+    manual: new ManualSecretRotator(settings),
+    resource: {
       name: 'myResource',
       type: 'manual/secret',
       expirationDays: 30,
       expirationOverlapDays: 15,
       keyVault: 'myVault'
     } as Partial<ManagedResource>
+  }
+}
+
+describe('manual-secret.ts', () => {
+  it('does not initialize secret if already initialized', async () => {
+    const { manual, resource } = setup()
+
+    // when trying to get the secret, return something indicating it was already initialized
+    mockGetSecretIfExists.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'text/plain',
+          createdOn: new Date(2023, 1, 1),
+          expiresOn: new Date(2023, 2, 1)
+        },
+        value: '123456'
+      } as KeyVaultSecret)
+    )
+
+    const rotationResult = await manual.Initialize(
+      'myResourceConfig',
+      manual.ApplyDefaults(resource)
+    )
+
+    expect(rotationResult.rotated).toBe(false)
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(rotationResult.notes).toBe('Secret already initialized')
+  })
+
+  it('initializes secret if not already initialized', async () => {
+    const { settings, manual, resource } = setup()
+
+    // when trying to get the secret, return undefined indicating it is not initialized
+    mockGetSecretIfExists.mockReturnValue(Promise.resolve(undefined))
+
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 3, 1).valueOf())
+    mockUpdateSecret.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'text/plain',
+          createdOn: new Date(2023, 3, 1),
+          expiresOn: AddDays(new Date(2023, 3, 1), 30)
+        },
+        value: 'abcdefgh'
+      } as KeyVaultSecret)
+    )
+
+    const rotationResult = await manual.Initialize(
+      'myResourceConfig',
+      manual.ApplyDefaults(resource)
+    )
+
+    expect(rotationResult.rotated).toBeTruthy()
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(mockUpdateSecret).toHaveBeenCalledTimes(1)
+    expect(mockUpdateSecret).toHaveBeenCalledWith(
+      resource.keyVault,
+      settings.credential,
+      'myResourceConfig',
+      'abcdefgh',
+      AddDays(new Date(2023, 3, 1), 30),
+      'text/plain'
+    )
+  })
+
+  it('initializes secret if forced', async () => {
+    const { settings, manual, resource } = setup()
+    settings.force = true
+
+    // when trying to get the secret, return something indicating it was already initialized
+    mockGetSecretIfExists.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'text/plain',
+          createdOn: new Date(2023, 1, 1),
+          expiresOn: new Date(2023, 2, 1)
+        },
+        value: '123456'
+      } as KeyVaultSecret)
+    )
+
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 3, 1).valueOf())
+    mockUpdateSecret.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'text/plain',
+          createdOn: new Date(2023, 3, 1),
+          expiresOn: AddDays(new Date(2023, 3, 1), 30)
+        },
+        value: 'abcdefgh'
+      } as KeyVaultSecret)
+    )
+
+    const rotationResult = await manual.Initialize(
+      'myResourceConfig',
+      manual.ApplyDefaults(resource)
+    )
+
+    expect(rotationResult.rotated).toBeTruthy()
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(mockUpdateSecret).toHaveBeenCalledTimes(1)
+    expect(mockUpdateSecret).toHaveBeenCalledWith(
+      resource.keyVault,
+      settings.credential,
+      'myResourceConfig',
+      'abcdefgh',
+      AddDays(new Date(2023, 3, 1), 30),
+      'text/plain'
+    )
+  })
+
+  it('does not rotate when secret is uninitialized', async () => {
+    const { manual, resource } = setup()
 
     // when trying to get the secret, return undefined indicating it wasn't found
     mockGetSecretIfExists.mockReturnValue(Promise.resolve(undefined))
@@ -57,22 +180,7 @@ describe('manual-secret.ts', () => {
   })
 
   it('does not rotate when not within the right number of days', async () => {
-    const settings = {
-      credential: new DefaultAzureCredential(),
-      force: false,
-      operation: '',
-      resourcesFilter: '*',
-      secretValue1: 'abcdefgh',
-      whatIf: false
-    } as OperationSettings
-    const manual = new ManualSecretRotator(settings)
-    const resource = {
-      name: 'myResource',
-      type: 'manual/secret',
-      expirationDays: 30,
-      expirationOverlapDays: 15,
-      keyVault: 'myVault'
-    } as Partial<ManagedResource>
+    const { manual, resource } = setup()
 
     // Set the current time to a day where the secret is not yet ready to rotate
     mockGetSecretIfExists.mockReturnValue(
@@ -99,22 +207,7 @@ describe('manual-secret.ts', () => {
   })
 
   it('performs rotation when the appropriate', async () => {
-    const settings = {
-      credential: new DefaultAzureCredential(),
-      force: false,
-      operation: '',
-      resourcesFilter: '*',
-      secretValue1: 'abcdefgh',
-      whatIf: false
-    } as OperationSettings
-    const manual = new ManualSecretRotator(settings)
-    const resource = {
-      name: 'myResource',
-      type: 'manual/secret',
-      expirationDays: 30,
-      expirationOverlapDays: 15,
-      keyVault: 'myVault'
-    } as Partial<ManagedResource>
+    const { settings, manual, resource } = setup()
 
     // Set the current time to a day where the secret is not yet ready to rotate
     mockGetSecretIfExists.mockReturnValue(

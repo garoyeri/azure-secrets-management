@@ -18,6 +18,10 @@ export class ManualCertificateRotator extends Rotator {
       ? Buffer.from(this.settings.secretValue1, 'base64')
       : Buffer.from(this.settings.secretValue1)
 
+    if (this.settings.whatIf) {
+      return new RotationResult(configurationId, true, 'what-if')
+    }
+
     const result = await ImportCertificate(
       resource.keyVault,
       this.settings.credential,
@@ -30,5 +34,13 @@ export class ManualCertificateRotator extends Rotator {
       id: result.properties.id,
       expiration: result.properties.expiresOn
     })
+  }
+
+  protected async PerformInitialization(
+    configurationId: string,
+    resource: ManagedResource,
+    secretName: string
+  ): Promise<RotationResult> {
+    return await this.PerformRotation(configurationId, resource, secretName)
   }
 }

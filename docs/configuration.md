@@ -3,9 +3,9 @@
 Secrets Management tries to derive all its inputs from the resources as they exist and not rely on any extra state that would need to be synchronized. At minimum, it needs a configuration file to give it some hints though:
 
 1. Which Key Vault should it use for storing rotated secrets?
-2. Which (and what type of) resources should be managed / rotated?
-3. What rotation policies to apply to these resources?
-4. Any other "extra" synchronizations that should be done after rotation?
+1. Which (and what type of) resources should be managed / rotated?
+1. What rotation policies to apply to these resources?
+1. Any other "extra" synchronizations that should be done after rotation?
 
 ## Setting up Secrets Management
 
@@ -15,29 +15,29 @@ This action aims to be very limited and focused in its role, to provide a headle
 
 These are the types of rotations that are supported:
 
-* SSL Certificates
-  * Manual Rotation
-    * These are a special case because they use the GitHub secrets to store the certificate content. They can't be automated all together, but separately only.
-* Storage Accounts
-  * If you are using shared key authentication, then the keys should be rotated. When the keys are rotated, then any SAS tokens created using those keys are invalidated automatically.
-  * SAS Tokens should be used for all operations if shared key authentication is the necessary approach. However, in some cases only the Shared Key is supported due to limitations in the application.
-* Service Bus / Event Hub / IoT Hub
-  * If you are using local authentication, then the keys should be rotated. Access policies created using those keys will be invalidated when the keys are rotated. The access keys need to be regenerated as well when the secrets are rotated. The root keys should not be shared or used with any applications.
-* Redis Cache
-  * These keys are rotated and shared.
-* PostgreSQL
-  * Flexible Server
-    * Admin Credentials
-      * An "Admin" credential is required to allow these databases to be managed. The "Admin" credential should not be used by any applications, but only to manage the server itself.
-    * Application Credentials
-      * Each application should have its own database credential to rotate. In a microservice architecture, each microservice should also get its own credential. These should be initialized and rotated at the appropriate intervals.
-      * In this strategy, a "template" is required to manage the permissions for each application to create the appropriate credentials each time. The template should just require a "role" or set of "roles" that are created on the database and granted permissions.
-* SQL Azure (TBD)
-  * Admin Credentials
-  * Application Credentials
-* GitHub Tokens
-  * Manual Rotation
-    * This one is trickier as a human is required to create the tokens, and having a token doesn't grant permission to create new tokens. When a token is ready to rotate, it must be done manually as well (like SSL certificates).
+- SSL Certificates
+  - Manual Rotation
+    - These are a special case because they use the GitHub secrets to store the certificate content. They can't be automated all together, but separately only.
+- Storage Accounts
+  - If you are using shared key authentication, then the keys should be rotated. When the keys are rotated, then any SAS tokens created using those keys are invalidated automatically.
+  - SAS Tokens should be used for all operations if shared key authentication is the necessary approach. However, in some cases only the Shared Key is supported due to limitations in the application.
+- Service Bus / Event Hub / IoT Hub
+  - If you are using local authentication, then the keys should be rotated. Access policies created using those keys will be invalidated when the keys are rotated. The access keys need to be regenerated as well when the secrets are rotated. The root keys should not be shared or used with any applications.
+- Redis Cache
+  - These keys are rotated and shared.
+- PostgreSQL
+  - Flexible Server
+    - Admin Credentials
+      - An "Admin" credential is required to allow these databases to be managed. The "Admin" credential should not be used by any applications, but only to manage the server itself.
+    - Application Credentials
+      - Each application should have its own database credential to rotate. In a microservice architecture, each microservice should also get its own credential. These should be initialized and rotated at the appropriate intervals.
+      - In this strategy, a "template" is required to manage the permissions for each application to create the appropriate credentials each time. The template should just require a "role" or set of "roles" that are created on the database and granted permissions.
+- SQL Azure (TBD)
+  - Admin Credentials
+  - Application Credentials
+- GitHub Tokens
+  - Manual Rotation
+    - This one is trickier as a human is required to create the tokens, and having a token doesn't grant permission to create new tokens. When a token is ready to rotate, it must be done manually as well (like SSL certificates).
 
 When a rotation occurs, then an output is set on the action that can be used to trigger further actions. For example: updating the GitHub token secret should synchronize that value with all the affected Kubernetes namespaces controlled by that secret. That sort of activity is out of scope here, but can be scripted as a secondary action: the goal for this action is only to make sure the secrets are rotated and the Key Vault is updated.
 
@@ -181,18 +181,18 @@ Make any desired adjustments and run the initialization operation when you're re
 
 ### Configuration Reference
 
-* `defaults`: these key value pairs will be applied by default to all resources in the configuration.
-* `resources`: these are the resources that should be configured to be rotated.
+- `defaults`: these key-value pairs will be applied by default to all resources in the configuration.
+- `resources`: these are the resources that should be configured to be rotated.
 
 For each `resource`, there is a name identifier which is used by the action to identify resources when the `resources` filter is used to call the action. These must be unique within a configuration file.
 
 Each `resource` entry has some common properties:
 
-* `type`: How to interpret this resource entry. Different types have different configuration fields and different defaults. Review the documentation to see which types are supported. This field is case-sensitive.
-* `name`: (optional based on type) the name of the resource based on the type, this is used to find the resource in the specifed Azure resource group.
-* `resourceGroup`: (optional based on type) the name of the resource group where the resource is located.
-* `keyVault`: the name of the Key Vault to store the rotated secret into.
-* `keyVaultResourceGroup`: the name of the resource group where the Key Vault is located.
-* `keyVaultSecretPrefix`: the prefix of the secret name to use (the secret name will always be the identifier name... for now).
-* `expirationDays`: (optional based on type) how many days the secret is valid for.
-* `expirationOverlapDays`: the number of days remaining for the secret before starting the rotation process. This should be less than `expirationDays` and can be `0` meaning that it should be rotated when it expires. You will want to have some overlap between the old secret and the new one to allow services to shift over to the new secret and use the old one while they do, avoiding any unnecessary errors.
+- `type`: How to interpret this resource entry. Different types have different configuration fields and different defaults. Review the documentation to see which types are supported. This field is case-sensitive.
+- `name`: (optional based on type) the name of the resource based on the type, this is used to find the resource in the specifed Azure resource group.
+- `resourceGroup`: (optional based on type) the name of the resource group where the resource is located.
+- `keyVault`: the name of the Key Vault to store the rotated secret into.
+- `keyVaultResourceGroup`: the name of the resource group where the Key Vault is located.
+- `keyVaultSecretPrefix`: the prefix of the secret name to use (the secret name will always be the identifier name... for now).
+- `expirationDays`: (optional based on type) how many days the secret is valid for.
+- `expirationOverlapDays`: the number of days remaining for the secret before starting the rotation process. This should be less than `expirationDays` and can be `0` meaning that it should be rotated when it expires. You will want to have some overlap between the old secret and the new one to allow services to shift over to the new secret and use the old one while they do, avoiding any unnecessary errors.
