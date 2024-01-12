@@ -30632,7 +30632,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.LoadConfigurationFromFile = void 0;
+exports.FilterResources = exports.LoadConfigurationFromFile = void 0;
 const fs_1 = __importDefault(__nccwpck_require__(7147));
 function LoadConfigurationFromFile(path) {
     const file = fs_1.default.readFileSync(path, 'utf-8');
@@ -30650,6 +30650,29 @@ function LoadConfigurationFromFile(path) {
     return configMapped;
 }
 exports.LoadConfigurationFromFile = LoadConfigurationFromFile;
+/**
+ * Filter the resources to find out which resources need to be targeted.
+ * @param configuration - the configuration file loaded
+ * @param targetResourceNames - the list of target resource names
+ * @returns - the list of identified resources to target
+ */
+function FilterResources(configuration, targetResourceNames) {
+    if (targetResourceNames.length === 0 || targetResourceNames[0] === '*') {
+        // handle ALL resources
+        return Array.from(configuration.resources, r => ({
+            id: r[0],
+            resource: r[1]
+        }));
+    }
+    // filter by target resource names, skipping resources that don't exist
+    return targetResourceNames
+        .map(n => ({
+        id: n,
+        resource: configuration.resources.get(n)
+    }))
+        .filter(r => r.resource);
+}
+exports.FilterResources = FilterResources;
 
 
 /***/ }),
@@ -30821,8 +30844,8 @@ const core = __importStar(__nccwpck_require__(2186));
 const cfg = __importStar(__nccwpck_require__(1371));
 const identity_1 = __nccwpck_require__(3084);
 const operation_settings_1 = __nccwpck_require__(2769);
-const manual_secret_1 = __nccwpck_require__(901);
-const nothing_operation_1 = __nccwpck_require__(5876);
+const operations = __importStar(__nccwpck_require__(5822));
+const rotators = __importStar(__nccwpck_require__(5911));
 /**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
@@ -30841,20 +30864,19 @@ async function run() {
         };
         const targetResources = (0, operation_settings_1.ParseResourceList)(settings.resourcesFilter);
         // prepare all the supported operations
-        const operations = [
-            new nothing_operation_1.NothingOperation(settings),
-            new manual_secret_1.ManualSecretOperation(settings)
-        ];
+        operations.Setup(settings);
+        // prepare rotators
+        rotators.Setup(settings);
         core.info(settings.operation);
         core.info(configuration.resources.keys.toString());
         // find operation
-        const operationsFound = operations.filter(o => o.operation === settings.operation);
-        if (operationsFound.length === 0) {
+        const op = operations.Resolve(settings.operation);
+        if (!op) {
             core.setFailed(`No operation matching '${settings.operation}' was found`);
             return;
         }
         // run the operation
-        await operationsFound[0].Run(configuration, targetResources);
+        await op.Run(configuration, targetResources);
     }
     catch (error) {
         // Fail the workflow run if an error occurs
@@ -30904,7 +30926,7 @@ exports.Operation = Operation;
 
 /***/ }),
 
-/***/ 901:
+/***/ 8192:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -30933,35 +30955,61 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ManualSecretOperation = void 0;
+exports.ResourceOperation = void 0;
 const core = __importStar(__nccwpck_require__(2186));
+const configuration_file_1 = __nccwpck_require__(1371);
 const abstract_operation_1 = __nccwpck_require__(3791);
-const manual_secret_1 = __nccwpck_require__(4368);
-class ManualSecretOperation extends abstract_operation_1.Operation {
-    constructor(settings) {
-        super('manual-secret', settings);
-    }
+const rotators_1 = __nccwpck_require__(5911);
+class ResourceOperation extends abstract_operation_1.Operation {
     async Run(configuration, targetResources) {
-        if (targetResources.length !== 1 || targetResources[0] === '*') {
-            core.setFailed('Manual secret can only operate on a single resource at a time');
-            return;
-        }
-        const manual = new manual_secret_1.ManualSecretRotator(this.settings);
-        const resource = configuration.resources.get(targetResources[0]);
-        if (!resource) {
-            core.setFailed(`Resource '${targetResources[0]}' was not found in the configuration file`);
-            return;
-        }
-        const result = await manual.Rotate(targetResources[0], manual.ApplyDefaults(resource));
-        if (result.rotated) {
-            core.info(`Resource '${targetResources[0]}' was rotated`);
-        }
-        else {
-            core.warning(`Resource '${targetResources[0]}' was NOT rotated: ${result.notes}`);
+        const targetResourceDetails = (0, configuration_file_1.FilterResources)(configuration, targetResources);
+        for (const r of targetResourceDetails) {
+            const rotator = (0, rotators_1.Resolve)(r.resource.type ?? '');
+            if (!rotator) {
+                // skip
+                core.warning(`Resource '${r.id}' of type '${r.resource.type ?? ''}' is not a supported resource type`);
+                continue;
+            }
+            try {
+                const result = await this.PerformSingleRun(rotator, r);
+                // validate
+                if (result.rotated) {
+                    core.info(`Resource '${r.id}' was processed`);
+                }
+                else {
+                    core.warning(`Resource '${r.id}' was not processed: ${result.notes}`);
+                }
+            }
+            catch (error) {
+                if (error instanceof Error) {
+                    core.error(`Resource '${r.id}' encountered an error: '${error.message}'`);
+                }
+            }
         }
     }
 }
-exports.ManualSecretOperation = ManualSecretOperation;
+exports.ResourceOperation = ResourceOperation;
+
+
+/***/ }),
+
+/***/ 5466:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.InitializeOperation = void 0;
+const abstract_resource_operation_1 = __nccwpck_require__(8192);
+class InitializeOperation extends abstract_resource_operation_1.ResourceOperation {
+    constructor(settings) {
+        super('initialize', settings);
+    }
+    async PerformSingleRun(rotator, r) {
+        return await rotator.Initialize(r.id, rotator.ApplyDefaults(r.resource));
+    }
+}
+exports.InitializeOperation = InitializeOperation;
 
 
 /***/ }),
@@ -30985,6 +31033,57 @@ class NothingOperation extends abstract_operation_1.Operation {
     targetResources) { }
 }
 exports.NothingOperation = NothingOperation;
+
+
+/***/ }),
+
+/***/ 5822:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Resolve = exports.Setup = void 0;
+const initialize_operation_1 = __nccwpck_require__(5466);
+const nothing_operation_1 = __nccwpck_require__(5876);
+const rotate_operation_1 = __nccwpck_require__(4421);
+const operations = new Map();
+function Setup(settings) {
+    const opsList = [
+        new nothing_operation_1.NothingOperation(settings),
+        new initialize_operation_1.InitializeOperation(settings),
+        new rotate_operation_1.RotateOperation(settings)
+    ];
+    for (const o of opsList) {
+        operations.set(o.operation, o);
+    }
+}
+exports.Setup = Setup;
+function Resolve(type) {
+    return operations.get(type);
+}
+exports.Resolve = Resolve;
+
+
+/***/ }),
+
+/***/ 4421:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RotateOperation = void 0;
+const abstract_resource_operation_1 = __nccwpck_require__(8192);
+class RotateOperation extends abstract_resource_operation_1.ResourceOperation {
+    constructor(settings) {
+        super('rotate', settings);
+    }
+    async PerformSingleRun(rotator, r) {
+        return await rotator.Rotate(r.id, rotator.ApplyDefaults(r.resource));
+    }
+}
+exports.RotateOperation = RotateOperation;
 
 
 /***/ }),
@@ -31134,6 +31233,11 @@ class ManualSecretRotator extends abstract_rotator_1.Rotator {
         const value = resource.decodeBase64
             ? Buffer.from(this.settings.secretValue1, 'base64')
             : Buffer.from(this.settings.secretValue1);
+        if (this.settings.whatIf) {
+            return new shared_1.RotationResult(configurationId, true, 'what-if', {
+                expiration: newExpiration
+            });
+        }
         const result = await (0, key_vault_1.UpdateSecret)(resource.keyVault, this.settings.credential, secretName, value.toString(), newExpiration, resource.contentType);
         return new shared_1.RotationResult(configurationId, true, '', {
             id: result.properties.id,
@@ -31145,6 +31249,28 @@ class ManualSecretRotator extends abstract_rotator_1.Rotator {
     }
 }
 exports.ManualSecretRotator = ManualSecretRotator;
+
+
+/***/ }),
+
+/***/ 5911:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Resolve = exports.Setup = void 0;
+const manual_secret_1 = __nccwpck_require__(4368);
+const rotators = new Map();
+function Setup(settings) {
+    const manual = new manual_secret_1.ManualSecretRotator(settings);
+    rotators.set(manual.type, manual);
+}
+exports.Setup = Setup;
+function Resolve(type) {
+    return rotators.get(type);
+}
+exports.Resolve = Resolve;
 
 
 /***/ }),

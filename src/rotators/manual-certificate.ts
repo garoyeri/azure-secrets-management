@@ -18,6 +18,10 @@ export class ManualCertificateRotator extends Rotator {
       ? Buffer.from(this.settings.secretValue1, 'base64')
       : Buffer.from(this.settings.secretValue1)
 
+    if (this.settings.whatIf) {
+      return new RotationResult(configurationId, true, 'what-if')
+    }
+
     const result = await ImportCertificate(
       resource.keyVault,
       this.settings.credential,

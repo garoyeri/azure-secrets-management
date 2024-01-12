@@ -2,9 +2,7 @@ import * as core from '@actions/core'
 import * as cfg from './configuration-file'
 import { DefaultAzureCredential } from '@azure/identity'
 import { OperationSettings, ParseResourceList } from './operation-settings'
-import { ManualSecretOperation } from './operations/manual-secret'
-import { Operation } from './operations/abstract-operation'
-import { NothingOperation } from './operations/nothing-operation'
+import * as operations from './operations/operations'
 import * as rotators from './rotators/rotators'
 
 /**
@@ -29,10 +27,7 @@ export async function run(): Promise<void> {
     const targetResources = ParseResourceList(settings.resourcesFilter)
 
     // prepare all the supported operations
-    const operations: Operation[] = [
-      new NothingOperation(settings),
-      new ManualSecretOperation(settings)
-    ]
+    operations.Setup(settings)
 
     // prepare rotators
     rotators.Setup(settings)
@@ -41,16 +36,14 @@ export async function run(): Promise<void> {
     core.info(configuration.resources.keys.toString())
 
     // find operation
-    const operationsFound = operations.filter(
-      o => o.operation === settings.operation
-    )
-    if (operationsFound.length === 0) {
+    const op = operations.Resolve(settings.operation)
+    if (!op) {
       core.setFailed(`No operation matching '${settings.operation}' was found`)
       return
     }
 
     // run the operation
-    await operationsFound[0].Run(configuration, targetResources)
+    await op.Run(configuration, targetResources)
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message)

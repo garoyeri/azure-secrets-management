@@ -21,6 +21,12 @@ export class ManualSecretRotator extends Rotator {
       ? Buffer.from(this.settings.secretValue1, 'base64')
       : Buffer.from(this.settings.secretValue1)
 
+    if (this.settings.whatIf) {
+      return new RotationResult(configurationId, true, 'what-if', {
+        expiration: newExpiration
+      })
+    }
+
     const result = await UpdateSecret(
       resource.keyVault,
       this.settings.credential,
