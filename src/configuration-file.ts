@@ -3,6 +3,9 @@ import fs from 'fs'
 type CertificateRequest = {
   subject: string
   dnsNames: string[]
+  keyStrength: number
+  trustChainPath: string
+  issuedCertificatePath: string
 }
 
 export type ManagedResource = {

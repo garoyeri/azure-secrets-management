@@ -53,7 +53,9 @@ describe('configuration-file.ts', () => {
         subject:
           'C=US;ST=TX;L=Houston;O=Company;OU=Department Name;CN=app.company.com',
         dnsNames: ['app.company.com', '*.app.company.com'],
-        keyStrength: 2048
+        keyStrength: 2048,
+        trustChainPath: 'certificates/company.pem',
+        issuedCertificatePath: 'certificates/app.company.com.pem'
       }
     })
   })

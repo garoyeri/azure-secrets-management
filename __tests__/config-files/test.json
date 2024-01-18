@@ -38,7 +38,9 @@
                     "app.company.com",
                     "*.app.company.com"
                 ],
-                "keyStrength": 2048
+                "keyStrength": 2048,
+                "trustChainPath": "certificates/company.pem",
+                "issuedCertificatePath": "certificates/app.company.com.pem"              
             }
         }
     }
