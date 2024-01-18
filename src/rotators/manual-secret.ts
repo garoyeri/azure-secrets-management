@@ -2,10 +2,10 @@ import { ManagedResource } from '../configuration-file'
 import { OperationSettings } from '../operation-settings'
 import { UpdateSecret } from '../key-vault'
 import { RotationResult } from './shared'
-import { Rotator } from './abstract-rotator'
+import { AbstractRotator } from './abstract-rotator'
 import { AddDays } from '../util'
 
-export class ManualSecretRotator extends Rotator {
+export class ManualSecretRotator extends AbstractRotator {
   constructor(settings: OperationSettings) {
     super('manual/generic', 'secret', settings)
   }

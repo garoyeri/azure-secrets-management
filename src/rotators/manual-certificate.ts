@@ -1,10 +1,10 @@
 import { ManagedResource } from '../configuration-file'
-import { Rotator } from './abstract-rotator'
+import { AbstractRotator } from './abstract-rotator'
 import { RotationResult } from './shared'
 import { OperationSettings } from '../operation-settings'
 import { ImportCertificate } from '../key-vault'
 
-export class ManualCertificateRotator extends Rotator {
+export class ManualCertificateRotator extends AbstractRotator {
   constructor(settings: OperationSettings) {
     super('manual/certificate', 'certificate', settings)
   }

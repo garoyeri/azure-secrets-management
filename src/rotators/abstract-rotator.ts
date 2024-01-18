@@ -5,7 +5,23 @@ import { GetCertificateIfExists, GetSecretIfExists } from '../key-vault'
 
 type SecretType = 'secret' | 'certificate'
 
-export abstract class Rotator {
+export interface Rotator {
+  readonly type: string
+
+  ApplyDefaults(resource: Partial<ManagedResource>): ManagedResource
+
+  Initialize(
+    configurationId: string,
+    resource: ManagedResource
+  ): Promise<RotationResult>
+
+  Rotate(
+    configurationId: string,
+    resource: ManagedResource
+  ): Promise<RotationResult>
+}
+
+export abstract class AbstractRotator implements Rotator {
   readonly type: string
   readonly secretType: SecretType
   readonly settings: OperationSettings
