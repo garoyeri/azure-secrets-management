@@ -1,3 +1,4 @@
+import * as fs from 'fs'
 import { OperationSettings } from '../operation-settings'
 import { Rotator } from './abstract-rotator'
 import { ManagedResource } from '../configuration-file'
@@ -8,6 +9,7 @@ import type {
   CertificatePolicy,
   CertificateClient
 } from '@azure/keyvault-certificates'
+import { ConvertCsrToText } from '../util'
 
 export class KeyVaultSslCertificateRotator implements Rotator {
   readonly type: string = 'azure/keyvault/ssl-certificate'
@@ -61,52 +63,41 @@ export class KeyVaultSslCertificateRotator implements Rotator {
       secretName
     )
 
-    if (!certificateFound) {
-      // no certificate, create new CSR request
-      // TODO: create new CSR request
-      return new RotationResult(
-        configurationId,
-        true,
-        'Created new certificate request, check for CSR',
-        {
-          csr: ''
-        }
+    if (certificateFound) {
+      // certificate was found, lets see the status and if we need to evaluate
+      const shouldRotate = ShouldRotate(
+        certificateFound.properties.expiresOn,
+        scrubbedResource.expirationOverlapDays
       )
+      const poller = await client.getCertificateOperation(secretName)
+      const status = poller.getOperationState()
+      if (status.isStarted && !this.settings.force) {
+        // there's a pending operation (and we're not forcing), get the CSR
+        return new RotationResult(
+          configurationId,
+          true,
+          'Certificate request in progress, check for CSR',
+          {
+            csr: ConvertCsrToText(status.certificateOperation?.csr)
+          }
+        )
+      }
+
+      if (!shouldRotate && !this.settings.force) {
+        // no need to start a CSR: not time to rotate, and not being forced
+        // return empty CSR result
+        return new RotationResult(
+          configurationId,
+          false,
+          'Not time to rotate yet',
+          {
+            csr: ''
+          }
+        )
+      }
     }
 
-    // certificate was found, lets see the status and if we need to evaluate
-    const shouldRotate = ShouldRotate(
-      certificateFound.properties.expiresOn,
-      scrubbedResource.expirationOverlapDays
-    )
-    const poller = await client.getCertificateOperation(secretName)
-    const status = poller.getOperationState()
-    if (status.isStarted && !this.settings.force) {
-      // there's a pending operation (and we're not forcing), get the CSR
-      return new RotationResult(
-        configurationId,
-        true,
-        'Certificate request in progress, check for CSR',
-        {
-          csr: this.ConvertCsrToText(status.certificateOperation?.csr)
-        }
-      )
-    }
-
-    if (!shouldRotate && !this.settings.force) {
-      // no need to start a CSR: not time to rotate, and not being forced
-      // return empty CSR result
-      return new RotationResult(
-        configurationId,
-        false,
-        'Not time to rotate yet',
-        {
-          csr: ''
-        }
-      )
-    }
-
-    // shouldRotate == true, time to request a new CSR!
+    // shouldRotate == true or this is a new certificate, time to request a new CSR!
     return await this.CreateCsr(
       client,
       configurationId,
@@ -119,18 +110,51 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     configurationId: string,
     resource: ManagedResource
   ): Promise<RotationResult> {
-    throw new Error('Method not implemented.')
-  }
+    const scrubbedResource = this.ApplyDefaults(resource)
+    const client = GetCertificateClient(
+      resource.keyVault,
+      this.settings.credential
+    )
+    const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
+    const certificateFound = await GetCertificateIfExists(
+      scrubbedResource.keyVault,
+      this.settings.credential,
+      secretName
+    )
 
-  protected ConvertCsrToText(csr: Uint8Array | undefined): string {
-    if (!csr) return ''
+    if (!certificateFound) {
+      // no certificate, bail out
+      return new RotationResult(
+        configurationId,
+        false,
+        'No certificate found, initialize first'
+      )
+    }
 
-    const base64Csr = Buffer.from(csr).toString('base64')
-    const wrappedCsr = `-----BEGIN CERTIFICATE REQUEST-----
-  ${base64Csr}
-  -----END CERTIFICATE REQUEST-----`
+    const shouldRotate = ShouldRotate(
+      certificateFound.properties.expiresOn,
+      scrubbedResource.expirationOverlapDays
+    )
 
-    return wrappedCsr
+    const poller = await client.getCertificateOperation(secretName)
+    const status = poller.getOperationState()
+    if (!status.isStarted) {
+      // CSR wasn't started, bail out
+      return new RotationResult(
+        configurationId,
+        false,
+        'CSR not generated, initialize first'
+      )
+    } else if (!shouldRotate && !this.settings.force) {
+      // it's not yet time to rotate (and we're not forcing), bail out
+      return new RotationResult(
+        configurationId,
+        false,
+        'Not time to rotate yet, wait for overlap period or try to force'
+      )
+    }
+
+    // CSR is started, and it's time to rotate (or we're forcing) so let's merge
   }
 
   protected CreatePolicy(
@@ -208,8 +232,26 @@ export class KeyVaultSslCertificateRotator implements Rotator {
       true,
       'Certificate request in progress, check for CSR',
       {
-        csr: this.ConvertCsrToText(status.certificateOperation?.csr)
+        csr: ConvertCsrToText(status.certificateOperation?.csr)
       }
     )
+  }
+
+  protected async MergeCertificate(
+    client: CertificateClient,
+    configurationId: string,
+    secretName: string,
+    resource: ManagedResource
+  ): Promise<RotationResult> {    
+    // find the CA trust chain if needed:
+    const trustChain = resource.certificate?.trustChainPath
+      ? fs.readFileSync(resource.certificate?.trustChainPath, 'utf-8')
+      : ''
+
+    const certificate = resource.certificate?.issuedCertificatePath
+      ? fs.readFileSync(resource.certificate?.issuedCertificatePath, 'utf-8')
+      : ''
+
+    const result = await client.mergeCertificate(secretName, )
   }
 }
