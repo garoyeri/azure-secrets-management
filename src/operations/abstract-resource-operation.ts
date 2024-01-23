@@ -6,7 +6,7 @@ import {
 } from '../configuration-file'
 import { Operation } from './abstract-operation'
 import { Resolve } from '../rotators/rotators'
-import { AbstractRotator } from '../rotators/abstract-rotator'
+import { Rotator } from '../rotators/abstract-rotator'
 import { RotationResult } from '../rotators/shared'
 
 export abstract class ResourceOperation extends Operation {
@@ -51,7 +51,7 @@ export abstract class ResourceOperation extends Operation {
   }
 
   protected abstract PerformSingleRun(
-    rotator: AbstractRotator,
+    rotator: Rotator,
     r: IdentifiedManagedResource
   ): Promise<RotationResult>
 }

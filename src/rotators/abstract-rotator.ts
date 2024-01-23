@@ -12,12 +12,12 @@ export interface Rotator {
 
   Initialize(
     configurationId: string,
-    resource: ManagedResource
+    resource: Partial<ManagedResource>
   ): Promise<RotationResult>
 
   Rotate(
     configurationId: string,
-    resource: ManagedResource
+    resource: Partial<ManagedResource>
   ): Promise<RotationResult>
 }
 
@@ -57,7 +57,7 @@ export abstract class AbstractRotator implements Rotator {
 
   async Initialize(
     configurationId: string,
-    resource: ManagedResource
+    resource: Partial<ManagedResource>
   ): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
 
@@ -118,7 +118,7 @@ export abstract class AbstractRotator implements Rotator {
 
   async Rotate(
     configurationId: string,
-    resource: ManagedResource
+    resource: Partial<ManagedResource>
   ): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
 

@@ -10,6 +10,7 @@ import type {
   CertificateClient
 } from '@azure/keyvault-certificates'
 import { ConvertCsrToText } from '../util'
+import { ParsePemToCertificates } from '../crypto-util'
 
 export class KeyVaultSslCertificateRotator implements Rotator {
   readonly type: string = 'azure/keyvault/ssl-certificate'
@@ -49,11 +50,11 @@ export class KeyVaultSslCertificateRotator implements Rotator {
    */
   async Initialize(
     configurationId: string,
-    resource: ManagedResource
+    resource: Partial<ManagedResource>
   ): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
     const client = GetCertificateClient(
-      resource.keyVault,
+      scrubbedResource.keyVault,
       this.settings.credential
     )
     const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
@@ -108,11 +109,11 @@ export class KeyVaultSslCertificateRotator implements Rotator {
 
   async Rotate(
     configurationId: string,
-    resource: ManagedResource
+    resource: Partial<ManagedResource>
   ): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
     const client = GetCertificateClient(
-      resource.keyVault,
+      scrubbedResource.keyVault,
       this.settings.credential
     )
     const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
@@ -155,6 +156,12 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     }
 
     // CSR is started, and it's time to rotate (or we're forcing) so let's merge
+    return await this.MergeCertificate(
+      client,
+      configurationId,
+      secretName,
+      scrubbedResource
+    )
   }
 
   protected CreatePolicy(
@@ -242,16 +249,28 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     configurationId: string,
     secretName: string,
     resource: ManagedResource
-  ): Promise<RotationResult> {    
-    // find the CA trust chain if needed:
+  ): Promise<RotationResult> {
     const trustChain = resource.certificate?.trustChainPath
       ? fs.readFileSync(resource.certificate?.trustChainPath, 'utf-8')
       : ''
-
     const certificate = resource.certificate?.issuedCertificatePath
       ? fs.readFileSync(resource.certificate?.issuedCertificatePath, 'utf-8')
       : ''
 
-    const result = await client.mergeCertificate(secretName, )
+    // append the certificates together, empty spots will get removed
+    const certificates = ParsePemToCertificates(`${trustChain}\n${certificate}`)
+    const result = await client.mergeCertificate(
+      secretName,
+      certificates.map(c => Buffer.from(c.toString()))
+    )
+
+    return new RotationResult(
+      configurationId,
+      true,
+      'Merged certificate successfully',
+      {
+        thumbprint: result.properties.x509Thumbprint?.toString() ?? ''
+      }
+    )
   }
 }
