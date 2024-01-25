@@ -13,10 +13,8 @@ export function ParsePemToCertificates(
   // split up certs in PEM encoded file, ensure that newlines are all UNIX-y
   const certs = content
     .split(/-----END CERTIFICATE-----/)
-    .filter(Boolean) // remove blanks
-    .map(c =>
-      c.replace(/-----BEGIN CERTIFICATE-----/, '').replace('\r\n', '\n')
-    )
+    .filter(c => c.trim()) // remove any strings that are just whitespace
+    .map(c => c.replace('\r\n', '\n').concat('-----END CERTIFICATE-----\n'))
 
   return certs.map(c => new crypto.X509Certificate(c))
 }

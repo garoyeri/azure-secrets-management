@@ -106,3 +106,4 @@ __tests__/runner/*
 __tests__/certs/*.crt
 __tests__/certs/*.key
 __tests__/certs/*.csr
+__tests__/certs/*.srl
