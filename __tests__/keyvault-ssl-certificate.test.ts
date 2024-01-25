@@ -15,6 +15,8 @@ const mockUpdate = jest.mocked(ImportCertificate)
 jest.mock('@azure/identity')
 const mockDefaultAzureCredential = jest.mocked(DefaultAzureCredential)
 
+const configurationId = 'MyCertificateConfiguration'
+
 beforeEach(() => {
   mockGetIfExists.mockClear()
   mockUpdate.mockClear()
@@ -27,7 +29,7 @@ afterEach(() => {
 
 function setup(): {
   settings: OperationSettings
-  manual: KeyVaultSslCertificateRotator
+  rotator: KeyVaultSslCertificateRotator
   resource: Partial<ManagedResource>
 } {
   const settings = {
@@ -40,9 +42,9 @@ function setup(): {
 
   return {
     settings,
-    manual: new KeyVaultSslCertificateRotator(settings),
+    rotator: new KeyVaultSslCertificateRotator(settings),
     resource: {
-      name: 'myResource',
+      name: '',
       type: 'azure/keyvault/ssl-certificate',
       expirationDays: 365,
       expirationOverlapDays: 60,
@@ -82,6 +84,13 @@ describe('keyvault-ssl-certificate.ts', () => {
     expect(certs[1].serialNumber).toBe(
       '0265AD28B1DFED4FE4822BC0B6A2C4C767E12ECE'
     )
+  })
 
+  it('can request a CSR when conditions are correct', async () => {
+    const { settings, rotator, resource } = setup()
+
+    const result = await rotator.Initialize(configurationId, resource)
+
+    expect(result.rotated).toBeTruthy()
   })
 })
