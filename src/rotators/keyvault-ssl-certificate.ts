@@ -3,14 +3,11 @@ import { OperationSettings } from '../operation-settings'
 import { Rotator } from './abstract-rotator'
 import { ManagedResource } from '../configuration-file'
 import { RotationResult, ShouldRotate } from './shared'
-import { GetCertificateClient, GetCertificateIfExists } from '../key-vault'
-import type {
-  ArrayOneOrMore,
-  CertificatePolicy,
-  CertificateClient
-} from '@azure/keyvault-certificates'
+import { KeyVaultClient } from '../key-vault'
 import { ConvertCsrToText } from '../util'
-import { ParsePemToCertificates } from '../crypto-util'
+import { KeyStrength } from '../crypto-util'
+
+const validKeyStrengths = new Set([2048, 3072, 4096])
 
 export class KeyVaultSslCertificateRotator implements Rotator {
   readonly type: string = 'azure/keyvault/ssl-certificate'
@@ -53,16 +50,9 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     resource: Partial<ManagedResource>
   ): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
-    const client = GetCertificateClient(
-      scrubbedResource.keyVault,
-      this.settings.credential
-    )
+    const client = new KeyVaultClient(this.settings, scrubbedResource.keyVault)
     const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
-    const certificateFound = await GetCertificateIfExists(
-      scrubbedResource.keyVault,
-      this.settings.credential,
-      secretName
-    )
+    const certificateFound = await client.GetCertificateIfExists(secretName)
 
     if (certificateFound) {
       // certificate was found, lets see the status and if we need to evaluate
@@ -70,8 +60,7 @@ export class KeyVaultSslCertificateRotator implements Rotator {
         certificateFound.properties.expiresOn,
         scrubbedResource.expirationOverlapDays
       )
-      const poller = await client.getCertificateOperation(secretName)
-      const status = poller.getOperationState()
+      const status = await client.CheckCertificateRequest(secretName)
       if (status.isStarted && !this.settings.force) {
         // there's a pending operation (and we're not forcing), get the CSR
         return new RotationResult(
@@ -99,11 +88,58 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     }
 
     // shouldRotate == true or this is a new certificate, time to request a new CSR!
-    return await this.CreateCsr(
-      client,
-      configurationId,
+
+    if (!scrubbedResource.certificate?.subject) {
+      return new RotationResult(
+        configurationId,
+        false,
+        'Certificate subject is required to request CSR'
+      )
+    }
+    if (!validKeyStrengths.has(scrubbedResource.certificate.keyStrength)) {
+      return new RotationResult(
+        configurationId,
+        false,
+        'Certificate keyStrength must be 2048, 3072, or 4096'
+      )
+    }
+    if (
+      !scrubbedResource.certificate?.dnsNames ||
+      scrubbedResource.certificate.dnsNames.length === 0
+    ) {
+      return new RotationResult(
+        configurationId,
+        false,
+        'At least one DNS name is required'
+      )
+    }
+
+    const result = await client.CreateCsr(
       secretName,
-      scrubbedResource
+      scrubbedResource.certificate.subject,
+      scrubbedResource.certificate.keyStrength as KeyStrength,
+      scrubbedResource.certificate.dnsNames
+    )
+
+    if (!result.certificateOperation?.csr) {
+      return new RotationResult(
+        configurationId,
+        false,
+        'Unknown error getting CSR after beginCreateCertificate',
+        {
+          csr: '',
+          status: JSON.stringify(result)
+        }
+      )
+    }
+
+    return new RotationResult(
+      configurationId,
+      true,
+      'Certificate request in progress, check for CSR',
+      {
+        csr: ConvertCsrToText(result.certificateOperation?.csr)
+      }
     )
   }
 
@@ -112,16 +148,9 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     resource: Partial<ManagedResource>
   ): Promise<RotationResult> {
     const scrubbedResource = this.ApplyDefaults(resource)
-    const client = GetCertificateClient(
-      scrubbedResource.keyVault,
-      this.settings.credential
-    )
+    const client = new KeyVaultClient(this.settings, scrubbedResource.keyVault)
     const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
-    const certificateFound = await GetCertificateIfExists(
-      scrubbedResource.keyVault,
-      this.settings.credential,
-      secretName
-    )
+    const certificateFound = await client.GetCertificateIfExists(secretName)
 
     if (!certificateFound) {
       // no certificate, bail out
@@ -137,8 +166,7 @@ export class KeyVaultSslCertificateRotator implements Rotator {
       scrubbedResource.expirationOverlapDays
     )
 
-    const poller = await client.getCertificateOperation(secretName)
-    const status = poller.getOperationState()
+    const status = await client.CheckCertificateRequest(secretName)
     if (!status.isStarted) {
       // CSR wasn't started, bail out
       return new RotationResult(
@@ -155,101 +183,6 @@ export class KeyVaultSslCertificateRotator implements Rotator {
       )
     }
 
-    // CSR is started, and it's time to rotate (or we're forcing) so let's merge
-    return await this.MergeCertificate(
-      client,
-      configurationId,
-      secretName,
-      scrubbedResource
-    )
-  }
-
-  protected CreatePolicy(
-    resource: ManagedResource
-  ): [CertificatePolicy | undefined, string | undefined] {
-    if (!resource.certificate?.subject) {
-      return [undefined, 'Certificate subject is required to request CSR']
-    }
-
-    if (!(resource.certificate.keyStrength in [2048, 3072, 4096])) {
-      return [undefined, 'Certificate keyStrength must be 2048, 3072, or 4096']
-    }
-
-    const policy: CertificatePolicy = {
-      issuerName: 'Unknown',
-      subject: resource.certificate.subject,
-      subjectAlternativeNames: resource.certificate?.dnsNames
-        ? {
-            dnsNames: resource.certificate.dnsNames as ArrayOneOrMore<string>
-          }
-        : undefined,
-      certificateTransparency: true,
-      contentType: 'application/x-pem-file', // we'll usually do a PEM import here
-      enhancedKeyUsage: [
-        '1.3.6.1.5.5.7.3.1' // serverAuth
-      ],
-      exportable: true,
-      keyType: 'RSA',
-      keySize: resource.certificate.keyStrength,
-      keyUsage: ['keyEncipherment', 'dataEncipherment'],
-      reuseKey: true,
-      validityInMonths: 12
-    }
-
-    return [policy, undefined]
-  }
-
-  protected async CreateCsr(
-    client: CertificateClient,
-    configurationId: string,
-    secretName: string,
-    resource: ManagedResource
-  ): Promise<RotationResult> {
-    const [policy, policyError] = this.CreatePolicy(resource)
-    if (policyError || !policy) {
-      return new RotationResult(
-        configurationId,
-        false,
-        policyError ?? 'Unknown error creating certificate policy',
-        {
-          csr: ''
-        }
-      )
-    }
-
-    await client.beginCreateCertificate(secretName, policy)
-    const poller = await client.getCertificateOperation(secretName)
-    const status = poller.getOperationState()
-    const csr = status.certificateOperation?.csr
-
-    if (!csr) {
-      return new RotationResult(
-        configurationId,
-        false,
-        'Unknown error getting CSR after beginCreateCertificate',
-        {
-          csr: '',
-          status: JSON.stringify(status)
-        }
-      )
-    }
-
-    return new RotationResult(
-      configurationId,
-      true,
-      'Certificate request in progress, check for CSR',
-      {
-        csr: ConvertCsrToText(status.certificateOperation?.csr)
-      }
-    )
-  }
-
-  protected async MergeCertificate(
-    client: CertificateClient,
-    configurationId: string,
-    secretName: string,
-    resource: ManagedResource
-  ): Promise<RotationResult> {
     const trustChain = resource.certificate?.trustChainPath
       ? fs.readFileSync(resource.certificate?.trustChainPath, 'utf-8')
       : ''
@@ -257,11 +190,10 @@ export class KeyVaultSslCertificateRotator implements Rotator {
       ? fs.readFileSync(resource.certificate?.issuedCertificatePath, 'utf-8')
       : ''
 
-    // append the certificates together, empty spots will get removed
-    const certificates = ParsePemToCertificates(`${trustChain}\n${certificate}`)
-    const result = await client.mergeCertificate(
+    // CSR is started, and it's time to rotate (or we're forcing) so let's merge
+    const result = await client.MergeCertificate(
       secretName,
-      certificates.map(c => Buffer.from(c.toString()))
+      `${trustChain}\n${certificate}`
     )
 
     return new RotationResult(

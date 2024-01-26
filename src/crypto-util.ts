@@ -1,4 +1,10 @@
+import type {
+  ArrayOneOrMore,
+  CertificatePolicy
+} from '@azure/keyvault-certificates'
 import * as crypto from 'crypto'
+
+export type KeyStrength = 2048 | 3072 | 4096
 
 /**
  * Parse the PEM content from a file into a set of x509 certificates.
@@ -17,4 +23,42 @@ export function ParsePemToCertificates(
     .map(c => c.replace('\r\n', '\n').concat('-----END CERTIFICATE-----\n'))
 
   return certs.map(c => new crypto.X509Certificate(c))
+}
+
+/**
+ * Create a policy for a certificate signing request (CSR) based on the
+ * certificate parameters.
+ *
+ * @param subject - Subject for the certificate, TODO: provide a format.
+ * @param keyStrength - Strength of the cryptographic key for securing the certificate.
+ * @param dnsNames  - List of DNS names to use for the certificate, likely needs at least one.
+ * @returns - The certificate policy details, including the CSR if it was generated correctly.
+ */
+export function CreatePolicy(
+  subject: string,
+  keyStrength: KeyStrength,
+  dnsNames: string[]
+): CertificatePolicy {
+  const policy: CertificatePolicy = {
+    issuerName: 'Unknown',
+    subject,
+    subjectAlternativeNames: dnsNames
+      ? {
+          dnsNames: dnsNames as ArrayOneOrMore<string>
+        }
+      : undefined,
+    certificateTransparency: true,
+    contentType: 'application/x-pem-file', // we'll usually do a PEM import here
+    enhancedKeyUsage: [
+      '1.3.6.1.5.5.7.3.1' // serverAuth
+    ],
+    exportable: true,
+    keyType: 'RSA',
+    keySize: keyStrength,
+    keyUsage: ['keyEncipherment', 'dataEncipherment'],
+    reuseKey: true,
+    validityInMonths: 12
+  }
+
+  return policy
 }

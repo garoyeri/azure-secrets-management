@@ -1,16 +1,15 @@
 import * as fs from 'fs'
 import { ManagedResource } from '../src/configuration-file'
-import { GetCertificateIfExists, ImportCertificate } from '../src/key-vault'
+import { KeyVaultClient } from '../src/key-vault'
 import { OperationSettings } from '../src/operation-settings'
 import { DefaultAzureCredential } from '@azure/identity'
 import { KeyVaultSslCertificateRotator } from '../src/rotators/keyvault-ssl-certificate'
 import { ParsePemToCertificates } from '../src/crypto-util'
-import { AddDays } from '../src/util'
-import type { KeyVaultCertificateWithPolicy } from '@azure/keyvault-certificates'
-
-jest.mock('../src/key-vault')
-const mockGetIfExists = jest.mocked(GetCertificateIfExists)
-const mockUpdate = jest.mocked(ImportCertificate)
+import type {
+  CertificateOperationState,
+  KeyVaultCertificateWithPolicy
+} from '@azure/keyvault-certificates'
+import { ConvertCsrToText } from '../src/util'
 
 jest.mock('@azure/identity')
 const mockDefaultAzureCredential = jest.mocked(DefaultAzureCredential)
@@ -18,12 +17,11 @@ const mockDefaultAzureCredential = jest.mocked(DefaultAzureCredential)
 const configurationId = 'MyCertificateConfiguration'
 
 beforeEach(() => {
-  mockGetIfExists.mockClear()
-  mockUpdate.mockClear()
   mockDefaultAzureCredential.mockClear()
 })
 
 afterEach(() => {
+  jest.resetAllMocks()
   jest.restoreAllMocks()
 })
 
@@ -48,7 +46,14 @@ function setup(): {
       type: 'azure/keyvault/ssl-certificate',
       expirationDays: 365,
       expirationOverlapDays: 60,
-      keyVault: 'myVault'
+      keyVault: 'myVault',
+      certificate: {
+        subject: 'CN=garoyeri.dev',
+        dnsNames: ['garoyeri.dev'],
+        keyStrength: 2048,
+        issuedCertificatePath: '__tests__/certs/public-domain-cert.pem.txt',
+        trustChainPath: '__tests__/certs/public-root-ca.pem.txt'
+      }
     } as Partial<ManagedResource>
   }
 }
@@ -87,10 +92,54 @@ describe('keyvault-ssl-certificate.ts', () => {
   })
 
   it('can request a CSR when conditions are correct', async () => {
+    // today is January 2, 2023, certificate expires February 2, 2023
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 0, 2).valueOf())
+    const getCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'GetCertificateIfExists')
+      .mockImplementation(async name => {
+        return Promise.resolve<KeyVaultCertificateWithPolicy>({
+          name: configurationId,
+          secretId: name,
+          properties: {
+            expiresOn: new Date(2023, 1, 2)
+          }
+        })
+      })
+
+    const checkCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CheckCertificateRequest')
+      .mockImplementation(async name => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isStarted: false,
+          isCancelled: false,
+          isCompleted: true
+        })
+      })
+
+    const createCsrMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CreateCsr')
+      .mockImplementation(async (name, subject, keyStrength) => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isCompleted: false,
+          isStarted: true,
+          isCancelled: false,
+          certificateOperation: {
+            csr: new Uint8Array([1, 2, 3, 4])
+          }
+        })
+      })
+
     const { settings, rotator, resource } = setup()
 
     const result = await rotator.Initialize(configurationId, resource)
 
+    expect(getCertificateMock).toHaveBeenCalledTimes(1)
+    expect(checkCertificateMock).toHaveBeenCalledTimes(1)
     expect(result.rotated).toBeTruthy()
+    expect(result.context).toStrictEqual({
+      csr: ConvertCsrToText(new Uint8Array([1, 2, 3, 4]))
+    })
   })
 })

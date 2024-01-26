@@ -2,12 +2,117 @@ import { DefaultAzureCredential } from '@azure/identity'
 import { CertificateClient } from '@azure/keyvault-certificates'
 import { SecretClient } from '@azure/keyvault-secrets'
 
-import type { KeyVaultCertificateWithPolicy } from '@azure/keyvault-certificates'
+import type {
+  CertificateContentType,
+  CertificateOperationState,
+  KeyVaultCertificateWithPolicy
+} from '@azure/keyvault-certificates'
 import type { KeyVaultSecret } from '@azure/keyvault-secrets'
+import { OperationSettings } from './operation-settings'
+import {
+  KeyStrength,
+  CreatePolicy,
+  ParsePemToCertificates
+} from './crypto-util'
 
 // Keep track of clients we've created so far and reuse them
 const secretClients = new Map<string, SecretClient>()
 const certificateClients = new Map<string, CertificateClient>()
+
+export class KeyVaultClient {
+  private readonly client: CertificateClient
+  private readonly settings: OperationSettings
+
+  constructor(settings: OperationSettings, vaultName: string) {
+    this.settings = settings
+    this.client = GetCertificateClient(vaultName, settings.credential)
+  }
+
+  /**
+   * Gets the value of a certificate if it exists.
+   *
+   * @param name - Name of the secret to get
+   * @returns The secret if it exists, otherwise `undefined`
+   */
+  async GetCertificateIfExists(
+    name: string
+  ): Promise<KeyVaultCertificateWithPolicy | undefined> {
+    let foundSecrets = 0
+    for await (const found of this.client.listPropertiesOfCertificateVersions(
+      name
+    )) {
+      if (found.enabled) foundSecrets++
+    }
+
+    if (foundSecrets > 0) {
+      return await this.client.getCertificate(name)
+    }
+
+    return undefined
+  }
+
+  /**
+   * Import certificate.
+   *
+   * @param name - Name of the certificate to update
+   * @param value - Value of the certificate to set
+   * @param password - Password of the source certificate if set (use empty string for no password)
+   * @param contentType - Content type of the secret (default application/x-pkcs12)
+   * @returns The updated secret details
+   */
+  async ImportCertificate(
+    name: string,
+    value: Uint8Array,
+    password = '',
+    contentType: CertificateContentType = 'application/x-pkcs12'
+  ): Promise<KeyVaultCertificateWithPolicy> {
+    const result = await this.client.importCertificate(name, value, {
+      password,
+      policy: {
+        exportable: true,
+        contentType
+      }
+    })
+
+    return result
+  }
+
+  async CheckCertificateRequest(
+    name: string
+  ): Promise<CertificateOperationState> {
+    const poller = await this.client.getCertificateOperation(name)
+    const status = poller.getOperationState()
+
+    return status
+  }
+
+  async CreateCsr(
+    name: string,
+    subject: string,
+    keyStrength: KeyStrength,
+    dnsNames: string[]
+  ): Promise<CertificateOperationState> {
+    const policy = CreatePolicy(subject, keyStrength, dnsNames)
+
+    await this.client.beginCreateCertificate(name, policy)
+    const status = await this.CheckCertificateRequest(name)
+
+    return status
+  }
+
+  async MergeCertificate(
+    name: string,
+    certificateChainPem: string
+  ): Promise<KeyVaultCertificateWithPolicy> {
+    const certificates = ParsePemToCertificates(certificateChainPem)
+    const result = await this.client.mergeCertificate(
+      name,
+      certificates.map(c => Buffer.from(c.toString()))
+    )
+
+    return result
+  }
+}
 
 /**
  * Gets a cached client or constructs and caches a new one for a Key Vault.
