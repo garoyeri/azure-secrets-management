@@ -119,7 +119,8 @@ describe('keyvault-ssl-certificate.ts', () => {
 
     const createCsrMock = jest
       .spyOn(KeyVaultClient.prototype, 'CreateCsr')
-      .mockImplementation(async (name, subject, keyStrength) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .mockImplementation(async (name, _subject, _keyStrength) => {
         return Promise.resolve<CertificateOperationState>({
           certificateName: name,
           isCompleted: false,
@@ -131,7 +132,7 @@ describe('keyvault-ssl-certificate.ts', () => {
         })
       })
 
-    const { settings, rotator, resource } = setup()
+    const { rotator, resource } = setup()
 
     const result = await rotator.Initialize(configurationId, resource)
 
@@ -175,7 +176,8 @@ describe('keyvault-ssl-certificate.ts', () => {
 
     const createCsrMock = jest
       .spyOn(KeyVaultClient.prototype, 'CreateCsr')
-      .mockImplementation(async (name, subject, keyStrength) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .mockImplementation(async (name, _subject, _keyStrength) => {
         return Promise.resolve<CertificateOperationState>({
           certificateName: name,
           isCompleted: false,
@@ -187,7 +189,7 @@ describe('keyvault-ssl-certificate.ts', () => {
         })
       })
 
-    const { settings, rotator, resource } = setup()
+    const { rotator, resource } = setup()
 
     const result = await rotator.Initialize(configurationId, resource)
 
