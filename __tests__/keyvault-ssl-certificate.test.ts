@@ -137,6 +137,63 @@ describe('keyvault-ssl-certificate.ts', () => {
 
     expect(getCertificateMock).toHaveBeenCalledTimes(1)
     expect(checkCertificateMock).toHaveBeenCalledTimes(1)
+    expect(createCsrMock).toHaveBeenCalledTimes(1)
+    expect(result.rotated).toBeTruthy()
+    expect(result.context).toStrictEqual({
+      csr: ConvertCsrToText(new Uint8Array([1, 2, 3, 4]))
+    })
+  })
+
+  it('can get a pending CSR details', async () => {
+    // today is January 2, 2023, certificate expires February 2, 2023
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 0, 2).valueOf())
+    const getCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'GetCertificateIfExists')
+      .mockImplementation(async name => {
+        return Promise.resolve<KeyVaultCertificateWithPolicy>({
+          name: configurationId,
+          secretId: name,
+          properties: {
+            expiresOn: new Date(2023, 1, 2)
+          }
+        })
+      })
+
+    const checkCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CheckCertificateRequest')
+      .mockImplementation(async name => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isStarted: true,
+          isCancelled: false,
+          isCompleted: false,
+          certificateOperation: {
+            csr: new Uint8Array([1, 2, 3, 4])
+          }
+        })
+      })
+
+    const createCsrMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CreateCsr')
+      .mockImplementation(async (name, subject, keyStrength) => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isCompleted: false,
+          isStarted: true,
+          isCancelled: false,
+          certificateOperation: {
+            csr: new Uint8Array([1, 2, 3, 4])
+          }
+        })
+      })
+
+    const { settings, rotator, resource } = setup()
+
+    const result = await rotator.Initialize(configurationId, resource)
+
+    expect(getCertificateMock).toHaveBeenCalledTimes(1)
+    expect(checkCertificateMock).toHaveBeenCalledTimes(1)
+    expect(createCsrMock).toHaveBeenCalledTimes(0)
     expect(result.rotated).toBeTruthy()
     expect(result.context).toStrictEqual({
       csr: ConvertCsrToText(new Uint8Array([1, 2, 3, 4]))
