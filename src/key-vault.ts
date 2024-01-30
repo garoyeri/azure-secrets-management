@@ -42,7 +42,7 @@ export class KeyVaultClient {
     for await (const found of this.client.listPropertiesOfCertificateVersions(
       name
     )) {
-      if (found.enabled) foundSecrets++
+      if (found) foundSecrets++
     }
 
     if (foundSecrets > 0) {
