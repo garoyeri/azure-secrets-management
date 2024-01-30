@@ -15,7 +15,7 @@ inputs:
   operation:
     description: |
       Operation to perform: initialize, generate-configuration, rotate
-      (default), manual-certificate, manual-secret
+      (default), manual-certificate, manual-secret, request-csr
     required: false
     default: 'rotate'
   force:
