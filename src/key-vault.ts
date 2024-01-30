@@ -2,6 +2,7 @@ import * as core from '@actions/core'
 import { DefaultAzureCredential } from '@azure/identity'
 import { CertificateClient } from '@azure/keyvault-certificates'
 import { SecretClient } from '@azure/keyvault-secrets'
+import { RestError } from '@azure/core-http'
 
 import type {
   CertificateContentType,
@@ -38,21 +39,18 @@ export class KeyVaultClient {
   async GetCertificateIfExists(
     name: string
   ): Promise<KeyVaultCertificateWithPolicy | undefined> {
-    let foundSecrets = 0
-    for await (const found of this.client.listPropertiesOfCertificateVersions(
-      name
-    )) {
-      if (found) foundSecrets++
-    }
-
-    if (foundSecrets > 0) {
+    try {
       const found = await this.client.getCertificate(name)
       core.debug(`GetCertificateIfExists(${name}): ${JSON.stringify(found)}`)
       return found
+    } catch (error) {
+      if (error instanceof RestError) {
+        if (error.statusCode === 404) {
+          core.debug(`GetCertificateIfExists(${name}): Not Found`)
+          return undefined
+        }
+      }
     }
-
-    core.debug(`GetCertificateIfExists(${name}): Not Found`)
-    return undefined
   }
 
   /**
