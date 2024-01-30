@@ -148,14 +148,15 @@ export function GetCertificateClient(
   keyVault: string,
   credential: DefaultAzureCredential
 ): CertificateClient {
-  const cached = certificateClients.get(keyVault)
+  const name = keyVault.toLowerCase()
+  const cached = certificateClients.get(name)
   if (cached) return cached
 
   const newClient = new CertificateClient(
-    `https://${keyVault}.vault.azure.net`,
+    `https://${name}.vault.azure.net`,
     credential
   )
-  certificateClients.set(keyVault, newClient)
+  certificateClients.set(name, newClient)
 
   return newClient
 }
