@@ -42,6 +42,6 @@ export class RequestCsrOperation extends ResourceOperation {
     fs.writeFileSync('csr.txt', csr)
 
     const artifact = new DefaultArtifactClient()
-    await artifact.uploadArtifact('csr', ['csr.txt'], '')
+    await artifact.uploadArtifact('csr', ['csr.txt'], '.')
   }
 }
