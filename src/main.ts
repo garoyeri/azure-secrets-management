@@ -24,8 +24,7 @@ export async function run(): Promise<void> {
     // prepare rotators
     rotators.Setup(settings)
 
-    core.info(settings.operation)
-    core.info(configuration.resources.keys.toString())
+    core.info(`Operation: '${settings.operation}'`)
 
     // find operation
     const op = operations.Resolve(settings.operation)
