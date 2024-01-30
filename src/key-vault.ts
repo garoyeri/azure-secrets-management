@@ -1,3 +1,4 @@
+import * as core from '@actions/core'
 import { DefaultAzureCredential } from '@azure/identity'
 import { CertificateClient } from '@azure/keyvault-certificates'
 import { SecretClient } from '@azure/keyvault-secrets'
@@ -45,9 +46,12 @@ export class KeyVaultClient {
     }
 
     if (foundSecrets > 0) {
-      return await this.client.getCertificate(name)
+      const found = await this.client.getCertificate(name)
+      core.debug(`GetCertificateIfExists(${name}): ${JSON.stringify(found)}`)
+      return found
     }
 
+    core.debug(`GetCertificateIfExists(${name}): Not Found`)
     return undefined
   }
 
@@ -74,6 +78,8 @@ export class KeyVaultClient {
       }
     })
 
+    core.debug(`ImportCertificate(${name},...): ${JSON.stringify(result)}`)
+
     return result
   }
 
@@ -82,6 +88,8 @@ export class KeyVaultClient {
   ): Promise<CertificateOperationState> {
     const poller = await this.client.getCertificateOperation(name)
     const status = poller.getOperationState()
+
+    core.debug(`CheckCertificateRequest(${name}): ${JSON.stringify(status)}`)
 
     return status
   }
@@ -97,6 +105,8 @@ export class KeyVaultClient {
     await this.client.beginCreateCertificate(name, policy)
     const status = await this.CheckCertificateRequest(name)
 
+    core.debug(`CreateCsr(${name},${subject}): ${JSON.stringify(status)}`)
+
     return status
   }
 
@@ -109,6 +119,8 @@ export class KeyVaultClient {
       name,
       certificates.map(c => Buffer.from(c.toString()))
     )
+
+    core.debug(`MergeCertificate(${name},...): ${JSON.stringify(result)}`)
 
     return result
   }
