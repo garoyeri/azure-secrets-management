@@ -9196,7 +9196,7 @@ function credentialLogger(title, log = logger$n) {
 /**
  * Current version of the `@azure/identity` package.
  */
-const SDK_VERSION = `4.0.0`;
+const SDK_VERSION = `4.0.1`;
 /**
  * The default client ID for authentication
  * @internal
@@ -9233,14 +9233,22 @@ exports.AzureAuthorityHosts = void 0;
     AzureAuthorityHosts["AzurePublicCloud"] = "https://login.microsoftonline.com";
 })(exports.AzureAuthorityHosts || (exports.AzureAuthorityHosts = {}));
 /**
+ * @internal
  * The default authority host.
  */
 const DefaultAuthorityHost = exports.AzureAuthorityHosts.AzurePublicCloud;
 /**
+ * @internal
  * Allow acquiring tokens for any tenant for multi-tentant auth.
  */
 const ALL_TENANTS = ["*"];
+/**
+ * @internal
+ */
 const CACHE_CAE_SUFFIX = ".cae";
+/**
+ * @internal
+ */
 const CACHE_NON_CAE_SUFFIX = ".nocae";
 
 // Copyright (c) Microsoft Corporation.
@@ -55544,7 +55552,7 @@ module.exports = parseParams
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
-/*! @azure/msal-common v14.6.0 2024-01-09 */
+/*! @azure/msal-common v14.6.1 2024-01-23 */
 
 'use strict';
 
@@ -56489,7 +56497,7 @@ class Logger {
 
 /* eslint-disable header/header */
 const name = "@azure/msal-common";
-const version = "14.6.0";
+const version = "14.6.1";
 
 /*
  * Copyright (c) Microsoft Corporation. All rights reserved.
@@ -58060,496 +58068,30 @@ class UrlString {
  */
 const rawMetdataJSON = {
     endpointMetadata: {
-        "https://login.microsoftonline.com/common/": {
-            token_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.microsoftonline.com/common/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
+        "login.microsoftonline.com": {
+            token_endpoint: "https://login.microsoftonline.com/{tenantid}/oauth2/v2.0/token",
+            jwks_uri: "https://login.microsoftonline.com/{tenantid}/discovery/v2.0/keys",
             issuer: "https://login.microsoftonline.com/{tenantid}/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://graph.microsoft.com/oidc/userinfo",
-            authorization_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.microsoftonline.com/common/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "microsoftonline.com",
-            cloud_graph_host_name: "graph.windows.net",
-            msgraph_host: "graph.microsoft.com",
-            rbac_url: "https://pas.windows.net",
+            authorization_endpoint: "https://login.microsoftonline.com/{tenantid}/oauth2/v2.0/authorize",
+            end_session_endpoint: "https://login.microsoftonline.com/{tenantid}/oauth2/v2.0/logout",
         },
-        "https://login.chinacloudapi.cn/common/": {
-            token_endpoint: "https://login.chinacloudapi.cn/common/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.chinacloudapi.cn/common/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
+        "login.chinacloudapi.cn": {
+            token_endpoint: "https://login.chinacloudapi.cn/{tenantid}/oauth2/v2.0/token",
+            jwks_uri: "https://login.chinacloudapi.cn/{tenantid}/discovery/v2.0/keys",
             issuer: "https://login.partner.microsoftonline.cn/{tenantid}/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://microsoftgraph.chinacloudapi.cn/oidc/userinfo",
-            authorization_endpoint: "https://login.chinacloudapi.cn/common/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.chinacloudapi.cn/common/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.chinacloudapi.cn/common/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.chinacloudapi.cn/common/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "partner.microsoftonline.cn",
-            cloud_graph_host_name: "graph.chinacloudapi.cn",
-            msgraph_host: "microsoftgraph.chinacloudapi.cn",
-            rbac_url: "https://pas.chinacloudapi.cn",
+            authorization_endpoint: "https://login.chinacloudapi.cn/{tenantid}/oauth2/v2.0/authorize",
+            end_session_endpoint: "https://login.chinacloudapi.cn/{tenantid}/oauth2/v2.0/logout",
         },
-        "https://login.microsoftonline.us/common/": {
-            token_endpoint: "https://login.microsoftonline.us/common/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.microsoftonline.us/common/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
+        "login.microsoftonline.us": {
+            token_endpoint: "https://login.microsoftonline.us/{tenantid}/oauth2/v2.0/token",
+            jwks_uri: "https://login.microsoftonline.us/{tenantid}/discovery/v2.0/keys",
             issuer: "https://login.microsoftonline.us/{tenantid}/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://graph.microsoft.com/oidc/userinfo",
-            authorization_endpoint: "https://login.microsoftonline.us/common/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.microsoftonline.us/common/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.microsoftonline.us/common/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.microsoftonline.us/common/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "microsoftonline.us",
-            cloud_graph_host_name: "graph.windows.net",
-            msgraph_host: "graph.microsoft.com",
-            rbac_url: "https://pasff.usgovcloudapi.net",
-        },
-        "https://login.microsoftonline.com/consumers/": {
-            token_endpoint: "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.microsoftonline.com/consumers/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
-            issuer: "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://graph.microsoft.com/oidc/userinfo",
-            authorization_endpoint: "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.microsoftonline.com/consumers/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.microsoftonline.com/consumers/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "microsoftonline.com",
-            cloud_graph_host_name: "graph.windows.net",
-            msgraph_host: "graph.microsoft.com",
-            rbac_url: "https://pas.windows.net",
-        },
-        "https://login.chinacloudapi.cn/consumers/": {
-            token_endpoint: "https://login.chinacloudapi.cn/consumers/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.chinacloudapi.cn/consumers/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
-            issuer: "https://login.partner.microsoftonline.cn/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://microsoftgraph.chinacloudapi.cn/oidc/userinfo",
-            authorization_endpoint: "https://login.chinacloudapi.cn/consumers/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.chinacloudapi.cn/consumers/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.chinacloudapi.cn/consumers/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.chinacloudapi.cn/consumers/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "partner.microsoftonline.cn",
-            cloud_graph_host_name: "graph.chinacloudapi.cn",
-            msgraph_host: "microsoftgraph.chinacloudapi.cn",
-            rbac_url: "https://pas.chinacloudapi.cn",
-        },
-        "https://login.microsoftonline.us/consumers/": {
-            token_endpoint: "https://login.microsoftonline.us/consumers/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.microsoftonline.us/consumers/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
-            issuer: "https://login.microsoftonline.us/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://graph.microsoft.com/oidc/userinfo",
-            authorization_endpoint: "https://login.microsoftonline.us/consumers/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.microsoftonline.us/consumers/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.microsoftonline.us/consumers/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.microsoftonline.us/consumers/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "microsoftonline.us",
-            cloud_graph_host_name: "graph.windows.net",
-            msgraph_host: "graph.microsoft.com",
-            rbac_url: "https://pasff.usgovcloudapi.net",
-        },
-        "https://login.microsoftonline.com/organizations/": {
-            token_endpoint: "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.microsoftonline.com/organizations/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
-            issuer: "https://login.microsoftonline.com/{tenantid}/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://graph.microsoft.com/oidc/userinfo",
-            authorization_endpoint: "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.microsoftonline.com/organizations/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.microsoftonline.com/organizations/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "microsoftonline.com",
-            cloud_graph_host_name: "graph.windows.net",
-            msgraph_host: "graph.microsoft.com",
-            rbac_url: "https://pas.windows.net",
-        },
-        "https://login.chinacloudapi.cn/organizations/": {
-            token_endpoint: "https://login.chinacloudapi.cn/organizations/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.chinacloudapi.cn/organizations/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
-            issuer: "https://login.partner.microsoftonline.cn/{tenantid}/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://microsoftgraph.chinacloudapi.cn/oidc/userinfo",
-            authorization_endpoint: "https://login.chinacloudapi.cn/organizations/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.chinacloudapi.cn/organizations/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.chinacloudapi.cn/organizations/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.chinacloudapi.cn/organizations/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "partner.microsoftonline.cn",
-            cloud_graph_host_name: "graph.chinacloudapi.cn",
-            msgraph_host: "microsoftgraph.chinacloudapi.cn",
-            rbac_url: "https://pas.chinacloudapi.cn",
-        },
-        "https://login.microsoftonline.us/organizations/": {
-            token_endpoint: "https://login.microsoftonline.us/organizations/oauth2/v2.0/token",
-            token_endpoint_auth_methods_supported: [
-                "client_secret_post",
-                "private_key_jwt",
-                "client_secret_basic",
-            ],
-            jwks_uri: "https://login.microsoftonline.us/organizations/discovery/v2.0/keys",
-            response_modes_supported: ["query", "fragment", "form_post"],
-            subject_types_supported: ["pairwise"],
-            id_token_signing_alg_values_supported: ["RS256"],
-            response_types_supported: [
-                "code",
-                "id_token",
-                "code id_token",
-                "id_token token",
-            ],
-            scopes_supported: ["openid", "profile", "email", "offline_access"],
-            issuer: "https://login.microsoftonline.us/{tenantid}/v2.0",
-            request_uri_parameter_supported: false,
-            userinfo_endpoint: "https://graph.microsoft.com/oidc/userinfo",
-            authorization_endpoint: "https://login.microsoftonline.us/organizations/oauth2/v2.0/authorize",
-            device_authorization_endpoint: "https://login.microsoftonline.us/organizations/oauth2/v2.0/devicecode",
-            http_logout_supported: true,
-            frontchannel_logout_supported: true,
-            end_session_endpoint: "https://login.microsoftonline.us/organizations/oauth2/v2.0/logout",
-            claims_supported: [
-                "sub",
-                "iss",
-                "cloud_instance_name",
-                "cloud_instance_host_name",
-                "cloud_graph_host_name",
-                "msgraph_host",
-                "aud",
-                "exp",
-                "iat",
-                "auth_time",
-                "acr",
-                "nonce",
-                "preferred_username",
-                "name",
-                "tid",
-                "ver",
-                "at_hash",
-                "c_hash",
-                "email",
-            ],
-            kerberos_endpoint: "https://login.microsoftonline.us/organizations/kerberos",
-            tenant_region_scope: null,
-            cloud_instance_name: "microsoftonline.us",
-            cloud_graph_host_name: "graph.windows.net",
-            msgraph_host: "graph.microsoft.com",
-            rbac_url: "https://pasff.usgovcloudapi.net",
+            authorization_endpoint: "https://login.microsoftonline.us/{tenantid}/oauth2/v2.0/authorize",
+            end_session_endpoint: "https://login.microsoftonline.us/{tenantid}/oauth2/v2.0/logout",
         },
     },
     instanceDiscoveryMetadata: {
         tenant_discovery_endpoint: "https://{canonicalAuthority}/v2.0/.well-known/openid-configuration",
-        "api-version": "1.1",
         metadata: [
             {
                 preferred_network: "login.microsoftonline.com",
@@ -61211,7 +60753,7 @@ RegionDiscovery.IMDS_OPTIONS = {
  * @internal
  */
 class Authority {
-    constructor(authority, networkInterface, cacheManager, authorityOptions, logger, performanceClient, correlationId) {
+    constructor(authority, networkInterface, cacheManager, authorityOptions, logger, correlationId, performanceClient) {
         this.canonicalAuthority = authority;
         this._canonicalAuthority.validateAsUri();
         this.networkInterface = networkInterface;
@@ -61448,6 +60990,10 @@ class Authority {
         this.updateCachedMetadata(metadataEntity, cloudDiscoverySource, {
             source: endpointSource,
         });
+        this.performanceClient?.addFields({
+            cloudDiscoverySource: cloudDiscoverySource,
+            authorityEndpointSource: endpointSource,
+        }, this.correlationId);
     }
     /**
      * Returns metadata entity from cache if it exists, otherwiser returns a new metadata entity built
@@ -61639,8 +61185,8 @@ class Authority {
      * Get OAuth endpoints for common authorities.
      */
     getEndpointMetadataFromHardcodedValues() {
-        if (this.canonicalAuthority in EndpointMetadata) {
-            return EndpointMetadata[this.canonicalAuthority];
+        if (this.hostnameAndPort in EndpointMetadata) {
+            return EndpointMetadata[this.hostnameAndPort];
         }
         return null;
     }
@@ -62032,49 +61578,35 @@ function buildStaticAuthorityOptions(authOptions) {
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-/** @internal */
-class AuthorityFactory {
-    /**
-     * Create an authority object of the correct type based on the url
-     * Performs basic authority validation - checks to see if the authority is of a valid type (i.e. aad, b2c, adfs)
-     *
-     * Also performs endpoint discovery.
-     *
-     * @param authorityUri
-     * @param networkClient
-     * @param protocolMode
-     */
-    static async createDiscoveredInstance(authorityUri, networkClient, cacheManager, authorityOptions, logger, performanceClient, correlationId) {
-        performanceClient?.addQueueMeasurement(PerformanceEvents.AuthorityFactoryCreateDiscoveredInstance, correlationId);
-        const authorityUriFinal = Authority.transformCIAMAuthority(formatAuthorityUri(authorityUri));
-        // Initialize authority and perform discovery endpoint check.
-        const acquireTokenAuthority = AuthorityFactory.createInstance(authorityUriFinal, networkClient, cacheManager, authorityOptions, logger, performanceClient, correlationId);
-        try {
-            await invokeAsync(acquireTokenAuthority.resolveEndpointsAsync.bind(acquireTokenAuthority), PerformanceEvents.AuthorityResolveEndpointsAsync, logger, performanceClient, correlationId)();
-            return acquireTokenAuthority;
-        }
-        catch (e) {
-            throw createClientAuthError(endpointResolutionError);
-        }
+/**
+ * Create an authority object of the correct type based on the url
+ * Performs basic authority validation - checks to see if the authority is of a valid type (i.e. aad, b2c, adfs)
+ *
+ * Also performs endpoint discovery.
+ *
+ * @param authorityUri
+ * @param networkClient
+ * @param protocolMode
+ * @internal
+ */
+async function createDiscoveredInstance(authorityUri, networkClient, cacheManager, authorityOptions, logger, correlationId, performanceClient) {
+    performanceClient?.addQueueMeasurement(PerformanceEvents.AuthorityFactoryCreateDiscoveredInstance, correlationId);
+    const authorityUriFinal = Authority.transformCIAMAuthority(formatAuthorityUri(authorityUri));
+    // Initialize authority and perform discovery endpoint check.
+    const acquireTokenAuthority = new Authority(authorityUriFinal, networkClient, cacheManager, authorityOptions, logger, correlationId, performanceClient);
+    try {
+        await invokeAsync(acquireTokenAuthority.resolveEndpointsAsync.bind(acquireTokenAuthority), PerformanceEvents.AuthorityResolveEndpointsAsync, logger, performanceClient, correlationId)();
+        return acquireTokenAuthority;
     }
-    /**
-     * Create an authority object of the correct type based on the url
-     * Performs basic authority validation - checks to see if the authority is of a valid type (i.e. aad, b2c, adfs)
-     *
-     * Does not perform endpoint discovery.
-     *
-     * @param authorityUrl
-     * @param networkInterface
-     * @param protocolMode
-     */
-    static createInstance(authorityUrl, networkInterface, cacheManager, authorityOptions, logger, performanceClient, correlationId) {
-        // Throw error if authority url is empty
-        if (!authorityUrl) {
-            throw createClientConfigurationError(urlEmptyError);
-        }
-        return new Authority(authorityUrl, networkInterface, cacheManager, authorityOptions, logger, performanceClient, correlationId);
+    catch (e) {
+        throw createClientAuthError(endpointResolutionError);
     }
 }
+
+var AuthorityFactory = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    createDiscoveredInstance: createDiscoveredInstance
+});
 
 /*
  * Copyright (c) Microsoft Corporation. All rights reserved.
@@ -62161,7 +61693,7 @@ class BaseClient {
     async updateAuthority(cloudInstanceHostname, correlationId) {
         this.performanceClient?.addQueueMeasurement(PerformanceEvents.UpdateTokenEndpointAuthority, correlationId);
         const cloudInstanceAuthorityUri = `https://${cloudInstanceHostname}/${this.authority.tenant}/`;
-        const cloudInstanceAuthority = await AuthorityFactory.createDiscoveredInstance(cloudInstanceAuthorityUri, this.networkClient, this.cacheManager, this.authority.options, this.logger, this.performanceClient, correlationId);
+        const cloudInstanceAuthority = await createDiscoveredInstance(cloudInstanceAuthorityUri, this.networkClient, this.cacheManager, this.authority.options, this.logger, correlationId, this.performanceClient);
         this.authority = cloudInstanceAuthority;
     }
     /**
@@ -64500,7 +64032,7 @@ exports.version = version;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -64942,7 +64474,7 @@ exports.NodeStorage = NodeStorage;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -65226,7 +64758,7 @@ exports.TokenCache = TokenCache;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -65269,7 +64801,7 @@ exports.DistributedCachePlugin = DistributedCachePlugin;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -65453,7 +64985,7 @@ exports.Deserializer = Deserializer;
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -65605,7 +65137,7 @@ exports.Serializer = Serializer;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -65834,7 +65366,7 @@ class ClientApplication {
             ? azureCloudOptions
             : this.config.auth.azureCloudOptions;
         // using null assertion operator as we ensure that all config values have default values in buildConfiguration()
-        const discoveredAuthority = await this.createAuthority(authority, azureRegionConfiguration, requestCorrelationId, userAzureCloudOptions);
+        const discoveredAuthority = await this.createAuthority(authority, requestCorrelationId, azureRegionConfiguration, userAzureCloudOptions);
         this.logger.info(`Building oauth client configuration with the following authority: ${discoveredAuthority.tokenEndpoint}.`, requestCorrelationId);
         serverTelemetryManager?.updateRegionDiscoveryMetadata(discoveredAuthority.regionDiscoveryMetadata);
         const clientConfiguration = {
@@ -65931,7 +65463,7 @@ class ClientApplication {
      * object. If no authority set in application object, then default to common authority.
      * @param authorityString - authority from user configuration
      */
-    async createAuthority(authorityString, azureRegionConfiguration, requestCorrelationId, azureCloudOptions) {
+    async createAuthority(authorityString, requestCorrelationId, azureRegionConfiguration, azureCloudOptions) {
         this.logger.verbose("createAuthority called", requestCorrelationId);
         // build authority string based on auth params - azureCloudInstance is prioritized if provided
         const authorityUrl = msalCommon.Authority.generateAuthority(authorityString, azureCloudOptions);
@@ -65943,7 +65475,7 @@ class ClientApplication {
             azureRegionConfiguration,
             skipAuthorityMetadataCache: this.config.auth.skipAuthorityMetadataCache,
         };
-        return msalCommon.AuthorityFactory.createDiscoveredInstance(authorityUrl, this.config.system.networkClient, this.storage, authorityOptions, this.logger);
+        return msalCommon.AuthorityFactory.createDiscoveredInstance(authorityUrl, this.config.system.networkClient, this.storage, authorityOptions, this.logger, requestCorrelationId);
     }
     /**
      * Clear the cache
@@ -65963,7 +65495,7 @@ exports.ClientApplication = ClientApplication;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -66099,7 +65631,7 @@ exports.ClientAssertion = ClientAssertion;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -66306,7 +65838,7 @@ exports.ClientCredentialClient = ClientCredentialClient;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -66491,7 +66023,7 @@ exports.ConfidentialClientApplication = ConfidentialClientApplication;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -66715,7 +66247,7 @@ exports.DeviceCodeClient = DeviceCodeClient;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -66935,7 +66467,7 @@ exports.OnBehalfOfClient = OnBehalfOfClient;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67186,7 +66718,7 @@ exports.PublicClientApplication = PublicClientApplication;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67298,7 +66830,7 @@ exports.UsernamePasswordClient = UsernamePasswordClient;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67388,7 +66920,7 @@ exports.buildAppConfiguration = buildAppConfiguration;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67483,7 +67015,7 @@ exports.CryptoProvider = CryptoProvider;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67522,7 +67054,7 @@ exports.GuidGenerator = GuidGenerator;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67553,7 +67085,7 @@ exports.HashUtils = HashUtils;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67623,7 +67155,7 @@ exports.PkceGenerator = PkceGenerator;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67726,7 +67258,7 @@ exports.NodeAuthErrorMessage = NodeAuthErrorMessage;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67853,7 +67385,7 @@ exports.version = packageMetadata.version;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -67880,7 +67412,7 @@ exports.Deserializer = Deserializer.Deserializer;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -68177,7 +67709,7 @@ exports.HttpClient = HttpClient;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -68274,13 +67806,13 @@ exports.LoopbackClient = LoopbackClient;
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
 /* eslint-disable header/header */
 const name = "@azure/msal-node";
-const version = "2.6.1";
+const version = "2.6.2";
 
 exports.name = name;
 exports.version = version;
@@ -68293,7 +67825,7 @@ exports.version = version;
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -68397,7 +67929,7 @@ exports.REGION_ENVIRONMENT_VARIABLE = REGION_ENVIRONMENT_VARIABLE;
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
@@ -68458,7 +67990,7 @@ exports.EncodingUtils = EncodingUtils;
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
-/*! @azure/msal-node v2.6.1 2024-01-09 */
+/*! @azure/msal-node v2.6.2 2024-01-23 */
 
 'use strict';
 
