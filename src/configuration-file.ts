@@ -1,5 +1,13 @@
 import fs from 'fs'
 
+type CertificateRequest = {
+  subject: string
+  dnsNames: string[]
+  keyStrength: number
+  trustChainPath: string
+  issuedCertificatePath: string
+}
+
 export type ManagedResource = {
   type: string
   name: string
@@ -10,6 +18,7 @@ export type ManagedResource = {
   expirationOverlapDays: number
   contentType: string
   decodeBase64: boolean
+  certificate: CertificateRequest | undefined
 }
 
 export type ConfigurationFile = {

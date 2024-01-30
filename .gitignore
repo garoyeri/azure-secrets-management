@@ -101,3 +101,9 @@ __tests__/runner/*
 .idea
 .vscode
 *.code-workspace
+
+# Test Certificates
+__tests__/certs/*.crt
+__tests__/certs/*.key
+__tests__/certs/*.csr
+__tests__/certs/*.srl

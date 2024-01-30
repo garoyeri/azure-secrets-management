@@ -52657,18 +52657,164 @@ exports.FilterResources = FilterResources;
 
 /***/ }),
 
+/***/ 2567:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CreatePolicy = exports.ParsePemToCertificates = void 0;
+const crypto = __importStar(__nccwpck_require__(6113));
+/**
+ * Parse the PEM content from a file into a set of x509 certificates.
+ * @param content - content from x509 certificate file
+ * @returns - the decoded x509 certificates, or an empty array if none were parseable
+ */
+function ParsePemToCertificates(content) {
+    if (!content)
+        return [];
+    // split up certs in PEM encoded file, ensure that newlines are all UNIX-y
+    const certs = content
+        .split(/-----END CERTIFICATE-----/)
+        .filter(c => c.trim()) // remove any strings that are just whitespace
+        .map(c => c.replace('\r\n', '\n').concat('-----END CERTIFICATE-----\n'));
+    return certs.map(c => new crypto.X509Certificate(c));
+}
+exports.ParsePemToCertificates = ParsePemToCertificates;
+/**
+ * Create a policy for a certificate signing request (CSR) based on the
+ * certificate parameters.
+ *
+ * @param subject - Subject for the certificate, TODO: provide a format.
+ * @param keyStrength - Strength of the cryptographic key for securing the certificate.
+ * @param dnsNames  - List of DNS names to use for the certificate, likely needs at least one.
+ * @returns - The certificate policy details, including the CSR if it was generated correctly.
+ */
+function CreatePolicy(subject, keyStrength, dnsNames) {
+    const policy = {
+        issuerName: 'Unknown',
+        subject,
+        subjectAlternativeNames: dnsNames
+            ? {
+                dnsNames: dnsNames
+            }
+            : undefined,
+        certificateTransparency: true,
+        contentType: 'application/x-pem-file', // we'll usually do a PEM import here
+        enhancedKeyUsage: [
+            '1.3.6.1.5.5.7.3.1' // serverAuth
+        ],
+        exportable: true,
+        keyType: 'RSA',
+        keySize: keyStrength,
+        keyUsage: ['keyEncipherment', 'dataEncipherment'],
+        reuseKey: true,
+        validityInMonths: 12
+    };
+    return policy;
+}
+exports.CreatePolicy = CreatePolicy;
+
+
+/***/ }),
+
 /***/ 1906:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ImportCertificate = exports.GetCertificateIfExists = exports.UpdateSecret = exports.GetSecretIfExists = exports.GetCertificateClient = exports.GetSecretClient = void 0;
+exports.ImportCertificate = exports.GetCertificateIfExists = exports.UpdateSecret = exports.GetSecretIfExists = exports.GetCertificateClient = exports.GetSecretClient = exports.KeyVaultClient = void 0;
 const keyvault_certificates_1 = __nccwpck_require__(2549);
 const keyvault_secrets_1 = __nccwpck_require__(181);
+const crypto_util_1 = __nccwpck_require__(2567);
 // Keep track of clients we've created so far and reuse them
 const secretClients = new Map();
 const certificateClients = new Map();
+class KeyVaultClient {
+    client;
+    settings;
+    constructor(settings, vaultName) {
+        this.settings = settings;
+        this.client = GetCertificateClient(vaultName, settings.credential);
+    }
+    /**
+     * Gets the value of a certificate if it exists.
+     *
+     * @param name - Name of the secret to get
+     * @returns The secret if it exists, otherwise `undefined`
+     */
+    async GetCertificateIfExists(name) {
+        let foundSecrets = 0;
+        for await (const found of this.client.listPropertiesOfCertificateVersions(name)) {
+            if (found.enabled)
+                foundSecrets++;
+        }
+        if (foundSecrets > 0) {
+            return await this.client.getCertificate(name);
+        }
+        return undefined;
+    }
+    /**
+     * Import certificate.
+     *
+     * @param name - Name of the certificate to update
+     * @param value - Value of the certificate to set
+     * @param password - Password of the source certificate if set (use empty string for no password)
+     * @param contentType - Content type of the secret (default application/x-pkcs12)
+     * @returns The updated secret details
+     */
+    async ImportCertificate(name, value, password = '', contentType = 'application/x-pkcs12') {
+        const result = await this.client.importCertificate(name, value, {
+            password,
+            policy: {
+                exportable: true,
+                contentType
+            }
+        });
+        return result;
+    }
+    async CheckCertificateRequest(name) {
+        const poller = await this.client.getCertificateOperation(name);
+        const status = poller.getOperationState();
+        return status;
+    }
+    async CreateCsr(name, subject, keyStrength, dnsNames) {
+        const policy = (0, crypto_util_1.CreatePolicy)(subject, keyStrength, dnsNames);
+        await this.client.beginCreateCertificate(name, policy);
+        const status = await this.CheckCertificateRequest(name);
+        return status;
+    }
+    async MergeCertificate(name, certificateChainPem) {
+        const certificates = (0, crypto_util_1.ParsePemToCertificates)(certificateChainPem);
+        const result = await this.client.mergeCertificate(name, certificates.map(c => Buffer.from(c.toString())));
+        return result;
+    }
+}
+exports.KeyVaultClient = KeyVaultClient;
 /**
  * Gets a cached client or constructs and caches a new one for a Key Vault.
  *
@@ -52833,15 +52979,7 @@ const rotators = __importStar(__nccwpck_require__(5911));
 async function run() {
     try {
         const configuration = cfg.LoadConfigurationFromFile(core.getInput('configuration'));
-        const settings = {
-            force: core.getBooleanInput('force'),
-            whatIf: core.getBooleanInput('what-if'),
-            operation: core.getInput('operation'),
-            resourcesFilter: core.getInput('resources'),
-            secretValue1: core.getInput('secret-value-1'),
-            secretValue2: core.getInput('secret-value-2'),
-            credential: new identity_1.DefaultAzureCredential()
-        };
+        const settings = Setup();
         const targetResources = (0, operation_settings_1.ParseResourceList)(settings.resourcesFilter);
         // prepare all the supported operations
         operations.Setup(settings);
@@ -52865,6 +53003,17 @@ async function run() {
     }
 }
 exports.run = run;
+function Setup() {
+    return {
+        force: core.getBooleanInput('force'),
+        whatIf: core.getBooleanInput('what-if'),
+        operation: core.getInput('operation'),
+        resourcesFilter: core.getInput('resources'),
+        secretValue1: core.getInput('secret-value-1'),
+        secretValue2: core.getInput('secret-value-2'),
+        credential: new identity_1.DefaultAzureCredential()
+    };
+}
 
 
 /***/ }),
@@ -52986,7 +53135,7 @@ class InitializeOperation extends abstract_resource_operation_1.ResourceOperatio
         super('initialize', settings);
     }
     async PerformSingleRun(rotator, r) {
-        return await rotator.Initialize(r.id, rotator.ApplyDefaults(r.resource));
+        return await rotator.Initialize(r.id, r.resource);
     }
 }
 exports.InitializeOperation = InitializeOperation;
@@ -53074,10 +53223,10 @@ exports.RotateOperation = RotateOperation;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Rotator = void 0;
+exports.AbstractRotator = void 0;
 const shared_1 = __nccwpck_require__(2492);
 const key_vault_1 = __nccwpck_require__(1906);
-class Rotator {
+class AbstractRotator {
     type;
     secretType;
     settings;
@@ -53188,7 +53337,192 @@ class Rotator {
         }
     }
 }
-exports.Rotator = Rotator;
+exports.AbstractRotator = AbstractRotator;
+
+
+/***/ }),
+
+/***/ 1423:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.KeyVaultSslCertificateRotator = void 0;
+const fs = __importStar(__nccwpck_require__(7147));
+const shared_1 = __nccwpck_require__(2492);
+const key_vault_1 = __nccwpck_require__(1906);
+const util_1 = __nccwpck_require__(2629);
+const validKeyStrengths = new Set([2048, 3072, 4096]);
+class KeyVaultSslCertificateRotator {
+    type = 'azure/keyvault/ssl-certificate';
+    settings;
+    constructor(settings) {
+        this.settings = settings;
+    }
+    ApplyDefaults(resource) {
+        return {
+            name: resource.name ?? '',
+            contentType: resource.contentType ?? 'application/x-pem-file',
+            decodeBase64: resource.decodeBase64 ?? false,
+            expirationDays: resource.expirationDays,
+            expirationOverlapDays: resource.expirationOverlapDays ?? 0,
+            keyVault: resource.keyVault ?? '',
+            keyVaultSecretPrefix: resource.keyVaultSecretPrefix ?? '',
+            resourceGroup: resource.resourceGroup ?? '',
+            type: resource.type ?? '',
+            certificate: {
+                subject: resource.certificate?.subject ?? '',
+                dnsNames: resource.certificate?.dnsNames ?? [],
+                keyStrength: resource.certificate?.keyStrength ?? 2048,
+                issuedCertificatePath: resource.certificate?.issuedCertificatePath ?? '',
+                trustChainPath: resource.certificate?.trustChainPath ?? ''
+            }
+        };
+    }
+    /**
+     * Initialize the SSL Certificate in Key Vault, fetching the CSR
+     * @param configurationId - ID of the certificate in the configuration file
+     * @param resource - Resource details of the certificate from the configuration file
+     * @returns - Rotation result, context will contain the string of the CSR in context.csr if successful
+     */
+    async Initialize(configurationId, resource) {
+        const scrubbedResource = this.ApplyDefaults(resource);
+        const client = new key_vault_1.KeyVaultClient(this.settings, scrubbedResource.keyVault);
+        const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId;
+        const certificateFound = await client.GetCertificateIfExists(secretName);
+        if (certificateFound) {
+            // certificate was found, lets see the status and if we need to evaluate
+            const shouldRotate = (0, shared_1.ShouldRotate)(certificateFound.properties.expiresOn, scrubbedResource.expirationOverlapDays);
+            const status = await client.CheckCertificateRequest(secretName);
+            if (status.isStarted && !this.settings.force) {
+                // there's a pending operation (and we're not forcing), get the CSR
+                return new shared_1.RotationResult(configurationId, true, 'Certificate request in progress, check for CSR', {
+                    csr: (0, util_1.ConvertCsrToText)(status.certificateOperation?.csr)
+                });
+            }
+            if (!shouldRotate && !this.settings.force) {
+                // no need to start a CSR: not time to rotate, and not being forced
+                // return empty CSR result
+                return new shared_1.RotationResult(configurationId, false, 'Not time to rotate yet', {
+                    csr: ''
+                });
+            }
+        }
+        // shouldRotate == true or this is a new certificate, time to request a new CSR!
+        if (!scrubbedResource.certificate?.subject) {
+            return new shared_1.RotationResult(configurationId, false, 'Certificate subject is required to request CSR');
+        }
+        if (!validKeyStrengths.has(scrubbedResource.certificate.keyStrength)) {
+            return new shared_1.RotationResult(configurationId, false, 'Certificate keyStrength must be 2048, 3072, or 4096');
+        }
+        if (!scrubbedResource.certificate?.dnsNames ||
+            scrubbedResource.certificate.dnsNames.length === 0) {
+            return new shared_1.RotationResult(configurationId, false, 'At least one DNS name is required');
+        }
+        const result = await client.CreateCsr(secretName, scrubbedResource.certificate.subject, scrubbedResource.certificate.keyStrength, scrubbedResource.certificate.dnsNames);
+        if (!result.certificateOperation?.csr) {
+            return new shared_1.RotationResult(configurationId, false, 'Unknown error getting CSR after beginCreateCertificate', {
+                csr: '',
+                status: JSON.stringify(result)
+            });
+        }
+        return new shared_1.RotationResult(configurationId, true, 'Certificate request in progress, check for CSR', {
+            csr: (0, util_1.ConvertCsrToText)(result.certificateOperation?.csr)
+        });
+    }
+    async Rotate(configurationId, resource) {
+        const scrubbedResource = this.ApplyDefaults(resource);
+        const client = new key_vault_1.KeyVaultClient(this.settings, scrubbedResource.keyVault);
+        const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId;
+        const certificateFound = await client.GetCertificateIfExists(secretName);
+        if (!certificateFound) {
+            // no certificate, bail out
+            return new shared_1.RotationResult(configurationId, false, 'No certificate found, initialize first');
+        }
+        const shouldRotate = (0, shared_1.ShouldRotate)(certificateFound.properties.expiresOn, scrubbedResource.expirationOverlapDays);
+        const status = await client.CheckCertificateRequest(secretName);
+        if (!status.isStarted) {
+            // CSR wasn't started, bail out
+            return new shared_1.RotationResult(configurationId, false, 'CSR not generated, initialize first');
+        }
+        else if (!shouldRotate && !this.settings.force) {
+            // it's not yet time to rotate (and we're not forcing), bail out
+            return new shared_1.RotationResult(configurationId, false, 'Not time to rotate yet, wait for overlap period or try to force');
+        }
+        const trustChain = resource.certificate?.trustChainPath
+            ? fs.readFileSync(resource.certificate?.trustChainPath, 'utf-8')
+            : '';
+        const certificate = resource.certificate?.issuedCertificatePath
+            ? fs.readFileSync(resource.certificate?.issuedCertificatePath, 'utf-8')
+            : '';
+        // CSR is started, and it's time to rotate (or we're forcing) so let's merge
+        const result = await client.MergeCertificate(secretName, `${trustChain}\n${certificate}`);
+        return new shared_1.RotationResult(configurationId, true, 'Merged certificate successfully', {
+            thumbprint: result.properties.x509Thumbprint?.toString() ?? ''
+        });
+    }
+}
+exports.KeyVaultSslCertificateRotator = KeyVaultSslCertificateRotator;
+
+
+/***/ }),
+
+/***/ 8993:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ManualCertificateRotator = void 0;
+const abstract_rotator_1 = __nccwpck_require__(2233);
+const shared_1 = __nccwpck_require__(2492);
+const key_vault_1 = __nccwpck_require__(1906);
+class ManualCertificateRotator extends abstract_rotator_1.AbstractRotator {
+    constructor(settings) {
+        super('manual/certificate', 'certificate', settings);
+    }
+    async PerformRotation(configurationId, resource, secretName) {
+        const pfxBuffer = resource.decodeBase64
+            ? Buffer.from(this.settings.secretValue1, 'base64')
+            : Buffer.from(this.settings.secretValue1);
+        if (this.settings.whatIf) {
+            return new shared_1.RotationResult(configurationId, true, 'what-if');
+        }
+        const result = await (0, key_vault_1.ImportCertificate)(resource.keyVault, this.settings.credential, secretName, pfxBuffer.valueOf(), this.settings.secretValue2);
+        return new shared_1.RotationResult(configurationId, true, '', {
+            id: result.properties.id,
+            expiration: result.properties.expiresOn
+        });
+    }
+    async PerformInitialization(configurationId, resource, secretName) {
+        return await this.PerformRotation(configurationId, resource, secretName);
+    }
+}
+exports.ManualCertificateRotator = ManualCertificateRotator;
 
 
 /***/ }),
@@ -53204,7 +53538,7 @@ const key_vault_1 = __nccwpck_require__(1906);
 const shared_1 = __nccwpck_require__(2492);
 const abstract_rotator_1 = __nccwpck_require__(2233);
 const util_1 = __nccwpck_require__(2629);
-class ManualSecretRotator extends abstract_rotator_1.Rotator {
+class ManualSecretRotator extends abstract_rotator_1.AbstractRotator {
     constructor(settings) {
         super('manual/generic', 'secret', settings);
     }
@@ -53240,11 +53574,19 @@ exports.ManualSecretRotator = ManualSecretRotator;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Resolve = exports.Setup = void 0;
+const keyvault_ssl_certificate_1 = __nccwpck_require__(1423);
+const manual_certificate_1 = __nccwpck_require__(8993);
 const manual_secret_1 = __nccwpck_require__(4368);
 const rotators = new Map();
 function Setup(settings) {
-    const manual = new manual_secret_1.ManualSecretRotator(settings);
-    rotators.set(manual.type, manual);
+    const rotatorList = [
+        new manual_secret_1.ManualSecretRotator(settings),
+        new manual_certificate_1.ManualCertificateRotator(settings),
+        new keyvault_ssl_certificate_1.KeyVaultSslCertificateRotator(settings)
+    ];
+    for (const r of rotatorList) {
+        rotators.set(r.type, r);
+    }
 }
 exports.Setup = Setup;
 function Resolve(type) {
@@ -53297,7 +53639,7 @@ exports.RotationResult = RotationResult;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ActionError = exports.DiffDays = exports.AddDays = void 0;
+exports.ActionError = exports.ConvertCsrToText = exports.DiffDays = exports.AddDays = void 0;
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 function AddDays(start, days) {
     return new Date(start.valueOf() + days * millisecondsPerDay);
@@ -53307,6 +53649,16 @@ function DiffDays(from, to) {
     return (to.valueOf() - from.valueOf()) / millisecondsPerDay;
 }
 exports.DiffDays = DiffDays;
+function ConvertCsrToText(csr) {
+    if (!csr)
+        return '';
+    const base64Csr = Buffer.from(csr).toString('base64');
+    const wrappedCsr = `-----BEGIN CERTIFICATE REQUEST-----
+${base64Csr}
+-----END CERTIFICATE REQUEST-----`;
+    return wrappedCsr;
+}
+exports.ConvertCsrToText = ConvertCsrToText;
 class ActionError extends Error {
     context;
     constructor(message, options = {}) {

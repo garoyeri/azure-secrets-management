@@ -13,6 +13,6 @@ export class InitializeOperation extends ResourceOperation {
     rotator: Rotator,
     r: IdentifiedManagedResource
   ): Promise<RotationResult> {
-    return await rotator.Initialize(r.id, rotator.ApplyDefaults(r.resource))
+    return await rotator.Initialize(r.id, r.resource)
   }
 }

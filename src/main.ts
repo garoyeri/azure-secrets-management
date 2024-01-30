@@ -14,15 +14,7 @@ export async function run(): Promise<void> {
     const configuration = cfg.LoadConfigurationFromFile(
       core.getInput('configuration')
     )
-    const settings = {
-      force: core.getBooleanInput('force'),
-      whatIf: core.getBooleanInput('what-if'),
-      operation: core.getInput('operation'),
-      resourcesFilter: core.getInput('resources'),
-      secretValue1: core.getInput('secret-value-1'),
-      secretValue2: core.getInput('secret-value-2'),
-      credential: new DefaultAzureCredential()
-    } as OperationSettings
+    const settings = Setup()
 
     const targetResources = ParseResourceList(settings.resourcesFilter)
 
@@ -48,4 +40,16 @@ export async function run(): Promise<void> {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message)
   }
+}
+
+function Setup(): OperationSettings {
+  return {
+    force: core.getBooleanInput('force'),
+    whatIf: core.getBooleanInput('what-if'),
+    operation: core.getInput('operation'),
+    resourcesFilter: core.getInput('resources'),
+    secretValue1: core.getInput('secret-value-1'),
+    secretValue2: core.getInput('secret-value-2'),
+    credential: new DefaultAzureCredential()
+  } as OperationSettings
 }

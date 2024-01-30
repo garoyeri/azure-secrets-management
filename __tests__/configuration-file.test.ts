@@ -40,5 +40,23 @@ describe('configuration-file.ts', () => {
       name: 'storageaccountname',
       type: 'azure/storage-account'
     } as Partial<ManagedResource>)
+    expect(configuration.resources.get('appCertificate1')).toStrictEqual({
+      resourceGroup: 'resourceGroup1',
+      keyVaultResourceGroup: 'resourceGroup1',
+      keyVault: 'vault1',
+      keyVaultSecretPrefix: '',
+      expirationDays: 365,
+      expirationOverlapDays: 60,
+      name: '',
+      type: 'azure/keyvault/ssl-certificate',
+      certificate: {
+        subject:
+          'C=US;ST=TX;L=Houston;O=Company;OU=Department Name;CN=app.company.com',
+        dnsNames: ['app.company.com', '*.app.company.com'],
+        keyStrength: 2048,
+        trustChainPath: 'certificates/company.pem',
+        issuedCertificatePath: 'certificates/app.company.com.pem'
+      }
+    })
   })
 })
