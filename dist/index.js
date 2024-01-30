@@ -52979,15 +52979,7 @@ const rotators = __importStar(__nccwpck_require__(5911));
 async function run() {
     try {
         const configuration = cfg.LoadConfigurationFromFile(core.getInput('configuration'));
-        const settings = {
-            force: core.getBooleanInput('force'),
-            whatIf: core.getBooleanInput('what-if'),
-            operation: core.getInput('operation'),
-            resourcesFilter: core.getInput('resources'),
-            secretValue1: core.getInput('secret-value-1'),
-            secretValue2: core.getInput('secret-value-2'),
-            credential: new identity_1.DefaultAzureCredential()
-        };
+        const settings = Setup();
         const targetResources = (0, operation_settings_1.ParseResourceList)(settings.resourcesFilter);
         // prepare all the supported operations
         operations.Setup(settings);
@@ -53011,6 +53003,17 @@ async function run() {
     }
 }
 exports.run = run;
+function Setup() {
+    return {
+        force: core.getBooleanInput('force'),
+        whatIf: core.getBooleanInput('what-if'),
+        operation: core.getInput('operation'),
+        resourcesFilter: core.getInput('resources'),
+        secretValue1: core.getInput('secret-value-1'),
+        secretValue2: core.getInput('secret-value-2'),
+        credential: new identity_1.DefaultAzureCredential()
+    };
+}
 
 
 /***/ }),
