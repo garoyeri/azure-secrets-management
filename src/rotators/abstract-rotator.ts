@@ -1,7 +1,7 @@
 import { OperationSettings } from '../operation-settings'
 import { ManagedResource } from '../configuration-file'
-import { RotationResult, ShouldRotate } from './shared'
-import { GetCertificateIfExists, GetSecretIfExists } from '../key-vault'
+import { InspectionResult, RotationResult, ShouldRotate } from './shared'
+import { KeyVaultClient } from '../key-vault'
 
 type SecretType = 'secret' | 'certificate'
 
@@ -19,6 +19,11 @@ export interface Rotator {
     configurationId: string,
     resource: Partial<ManagedResource>
   ): Promise<RotationResult>
+
+  Inspect(
+    configurationId: string,
+    resource: Partial<ManagedResource>
+  ): Promise<InspectionResult>
 }
 
 export abstract class AbstractRotator implements Rotator {
@@ -62,13 +67,10 @@ export abstract class AbstractRotator implements Rotator {
     const scrubbedResource = this.ApplyDefaults(resource)
 
     const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
+    const client = new KeyVaultClient(this.settings, scrubbedResource.keyVault)
 
     if (this.secretType === 'secret') {
-      const secretFound = await GetSecretIfExists(
-        scrubbedResource.keyVault,
-        this.settings.credential,
-        secretName
-      )
+      const secretFound = await client.GetSecretIfExists(secretName)
 
       if (secretFound && !this.settings.force) {
         return new RotationResult(
@@ -79,11 +81,7 @@ export abstract class AbstractRotator implements Rotator {
         )
       }
     } else if (this.secretType === 'certificate') {
-      const certificateFound = await GetCertificateIfExists(
-        scrubbedResource.keyVault,
-        this.settings.credential,
-        secretName
-      )
+      const certificateFound = await client.GetCertificateIfExists(secretName)
 
       if (certificateFound && !this.settings.force) {
         return new RotationResult(
@@ -100,7 +98,8 @@ export abstract class AbstractRotator implements Rotator {
       const result = await this.PerformInitialization(
         configurationId,
         scrubbedResource,
-        secretName
+        secretName,
+        client
       )
       return result
     } catch (error) {
@@ -123,13 +122,10 @@ export abstract class AbstractRotator implements Rotator {
     const scrubbedResource = this.ApplyDefaults(resource)
 
     const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
+    const client = new KeyVaultClient(this.settings, scrubbedResource.keyVault)
 
     if (this.secretType === 'secret') {
-      const secretFound = await GetSecretIfExists(
-        scrubbedResource.keyVault,
-        this.settings.credential,
-        secretName
-      )
+      const secretFound = await client.GetSecretIfExists(secretName)
 
       if (!secretFound) {
         // don't rotate, secret wasn't initialized yet
@@ -160,11 +156,7 @@ export abstract class AbstractRotator implements Rotator {
         )
       }
     } else if (this.secretType === 'certificate') {
-      const certificateFound = await GetCertificateIfExists(
-        scrubbedResource.keyVault,
-        this.settings.credential,
-        secretName
-      )
+      const certificateFound = await client.GetCertificateIfExists(secretName)
 
       if (!certificateFound) {
         // don't rotate, secret wasn't initialized yet
@@ -201,7 +193,8 @@ export abstract class AbstractRotator implements Rotator {
       const result = await this.PerformRotation(
         configurationId,
         scrubbedResource,
-        secretName
+        secretName,
+        client
       )
       return result
     } catch (error) {
@@ -217,15 +210,43 @@ export abstract class AbstractRotator implements Rotator {
     }
   }
 
+  async Inspect(
+    configurationId: string,
+    resource: Partial<ManagedResource>
+  ): Promise<InspectionResult> {
+    const scrubbedResource = this.ApplyDefaults(resource)
+
+    const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
+    const client = new KeyVaultClient(this.settings, scrubbedResource.keyVault)
+
+    const result = await this.PerformInspection(
+      configurationId,
+      scrubbedResource,
+      secretName,
+      client
+    )
+
+    return result
+  }
+
   protected abstract PerformInitialization(
     configurationId: string,
     resource: ManagedResource,
-    secretName: string
+    secretName: string,
+    client: KeyVaultClient
   ): Promise<RotationResult>
 
   protected abstract PerformRotation(
     configurationId: string,
     resource: ManagedResource,
-    secretName: string
+    secretName: string,
+    client: KeyVaultClient
   ): Promise<RotationResult>
+
+  protected abstract PerformInspection(
+    configurationId: string,
+    resource: ManagedResource,
+    secretName: string,
+    client: KeyVaultClient
+  ): Promise<InspectionResult>
 }

@@ -1,7 +1,7 @@
 import { ManagedResource } from '../configuration-file'
 import { OperationSettings } from '../operation-settings'
-import { UpdateSecret } from '../key-vault'
-import { RotationResult } from './shared'
+import { KeyVaultClient } from '../key-vault'
+import { InspectionResult, RotationResult } from './shared'
 import { AbstractRotator } from './abstract-rotator'
 import { AddDays } from '../util'
 
@@ -13,7 +13,8 @@ export class ManualSecretRotator extends AbstractRotator {
   async PerformRotation(
     configurationId: string,
     resource: ManagedResource,
-    secretName: string
+    secretName: string,
+    client: KeyVaultClient
   ): Promise<RotationResult> {
     const newExpiration = AddDays(new Date(Date.now()), resource.expirationDays)
 
@@ -27,9 +28,7 @@ export class ManualSecretRotator extends AbstractRotator {
       })
     }
 
-    const result = await UpdateSecret(
-      resource.keyVault,
-      this.settings.credential,
+    const result = await client.UpdateSecret(
       secretName,
       value.toString(),
       newExpiration,
@@ -45,8 +44,45 @@ export class ManualSecretRotator extends AbstractRotator {
   protected async PerformInitialization(
     configurationId: string,
     resource: ManagedResource,
-    secretName: string
+    secretName: string,
+    client: KeyVaultClient
   ): Promise<RotationResult> {
-    return await this.PerformRotation(configurationId, resource, secretName)
+    return await this.PerformRotation(
+      configurationId,
+      resource,
+      secretName,
+      client
+    )
+  }
+
+  protected async PerformInspection(
+    configurationId: string,
+    resource: ManagedResource,
+    secretName: string,
+    client: KeyVaultClient
+  ): Promise<InspectionResult> {
+    const result = await client.GetSecretIfExists(secretName)
+    if (!result) {
+      return new InspectionResult(
+        configurationId,
+        this.type,
+        '',
+        'Secret not found'
+      )
+    }
+
+    const length = result.value?.length ?? 0
+
+    return new InspectionResult(
+      configurationId,
+      this.type,
+      result.properties.id,
+      result.properties.enabled
+        ? `Secret OK, length: ${length}, contentType: ${result.properties.contentType ?? 'unspecified'}`
+        : 'Secret disabled',
+      '',
+      result.properties.updatedOn,
+      result.properties.expiresOn
+    )
   }
 }

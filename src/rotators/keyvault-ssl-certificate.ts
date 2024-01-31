@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import { OperationSettings } from '../operation-settings'
 import { Rotator } from './abstract-rotator'
 import { ManagedResource } from '../configuration-file'
-import { RotationResult, ShouldRotate } from './shared'
+import { InspectionResult, RotationResult, ShouldRotate } from './shared'
 import { KeyVaultClient } from '../key-vault'
 import { ConvertCsrToText } from '../util'
 import { KeyStrength } from '../crypto-util'
@@ -203,6 +203,47 @@ export class KeyVaultSslCertificateRotator implements Rotator {
       {
         thumbprint: result.properties.x509Thumbprint?.toString() ?? ''
       }
+    )
+  }
+
+  async Inspect(
+    configurationId: string,
+    resource: Partial<ManagedResource>
+  ): Promise<InspectionResult> {
+    const scrubbedResource = this.ApplyDefaults(resource)
+    const client = new KeyVaultClient(this.settings, scrubbedResource.keyVault)
+    const secretName = scrubbedResource.keyVaultSecretPrefix + configurationId
+
+    const result = await client.GetCertificateIfExists(secretName)
+    if (!result) {
+      return new InspectionResult(
+        configurationId,
+        this.type,
+        '',
+        'Certificate not found'
+      )
+    }
+
+    const status = await client.CheckCertificateRequest(secretName)
+    let notes = ''
+    if (status.isStarted) {
+      notes = 'Certificate request started'
+    } else if (status.isCompleted && result.properties.enabled) {
+      notes = 'Certificate valid'
+    } else if (status.isCompleted && !result.properties.enabled) {
+      notes = 'Certificate expired or disabled'
+    } else if (status.isCancelled) {
+      notes = 'Certificate cancelled'
+    }
+
+    return new InspectionResult(
+      configurationId,
+      this.type,
+      result.id ?? '',
+      notes,
+      '',
+      result.properties.updatedOn,
+      result.properties.expiresOn
     )
   }
 }

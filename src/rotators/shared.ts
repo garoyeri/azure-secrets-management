@@ -36,3 +36,43 @@ export class RotationResult {
     this.context = context
   }
 }
+
+export class InspectionResult {
+  readonly name: string
+  readonly type: string
+  readonly expiresOn: Date | undefined
+  readonly updatedOn: Date | undefined
+  readonly secretId: string
+  readonly resourceId: string
+  readonly notes: string
+
+  constructor(
+    name: string,
+    type: string,
+    secretId?: string,
+    notes?: string,
+    resourceId?: string,
+    updatedOn?: Date,
+    expiresOn?: Date
+  ) {
+    this.name = name
+    this.type = type
+    this.secretId = secretId ?? ''
+    this.notes = notes ?? ''
+    this.resourceId = resourceId ?? ''
+    this.updatedOn = updatedOn
+    this.expiresOn = expiresOn
+  }
+
+  toJSON(): Jsonable {
+    return {
+      name: this.name,
+      type: this.type,
+      expiresOn: this.expiresOn,
+      updatedOn: this.updatedOn,
+      secretId: this.secretId,
+      resourceId: this.resourceId,
+      notes: this.notes
+    }
+  }
+}

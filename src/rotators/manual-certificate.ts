@@ -1,8 +1,8 @@
 import { ManagedResource } from '../configuration-file'
 import { AbstractRotator } from './abstract-rotator'
-import { RotationResult } from './shared'
+import { InspectionResult, RotationResult } from './shared'
 import { OperationSettings } from '../operation-settings'
-import { ImportCertificate } from '../key-vault'
+import { KeyVaultClient } from '../key-vault'
 
 export class ManualCertificateRotator extends AbstractRotator {
   constructor(settings: OperationSettings) {
@@ -12,7 +12,8 @@ export class ManualCertificateRotator extends AbstractRotator {
   async PerformRotation(
     configurationId: string,
     resource: ManagedResource,
-    secretName: string
+    secretName: string,
+    client: KeyVaultClient
   ): Promise<RotationResult> {
     const pfxBuffer = resource.decodeBase64
       ? Buffer.from(this.settings.secretValue1, 'base64')
@@ -22,9 +23,7 @@ export class ManualCertificateRotator extends AbstractRotator {
       return new RotationResult(configurationId, true, 'what-if')
     }
 
-    const result = await ImportCertificate(
-      resource.keyVault,
-      this.settings.credential,
+    const result = await client.ImportCertificate(
       secretName,
       pfxBuffer.valueOf(),
       this.settings.secretValue2
@@ -39,8 +38,53 @@ export class ManualCertificateRotator extends AbstractRotator {
   protected async PerformInitialization(
     configurationId: string,
     resource: ManagedResource,
-    secretName: string
+    secretName: string,
+    client: KeyVaultClient
   ): Promise<RotationResult> {
-    return await this.PerformRotation(configurationId, resource, secretName)
+    return await this.PerformRotation(
+      configurationId,
+      resource,
+      secretName,
+      client
+    )
+  }
+
+  protected async PerformInspection(
+    configurationId: string,
+    resource: ManagedResource,
+    secretName: string,
+    client: KeyVaultClient
+  ): Promise<InspectionResult> {
+    const result = await client.GetCertificateIfExists(secretName)
+    if (!result) {
+      return new InspectionResult(
+        configurationId,
+        this.type,
+        '',
+        'Certificate not found'
+      )
+    }
+
+    const status = await client.CheckCertificateRequest(secretName)
+    let notes = ''
+    if (status.isStarted) {
+      notes = 'Certificate request started'
+    } else if (status.isCompleted && result.properties.enabled) {
+      notes = 'Certificate valid'
+    } else if (status.isCompleted && !result.properties.enabled) {
+      notes = 'Certificate expired or disabled'
+    } else if (status.isCancelled) {
+      notes = 'Certificate cancelled'
+    }
+
+    return new InspectionResult(
+      configurationId,
+      this.type,
+      result.id ?? '',
+      notes,
+      '',
+      result.properties.updatedOn,
+      result.properties.expiresOn
+    )
   }
 }
