@@ -82,7 +82,7 @@ describe('manual-secret.ts', () => {
   })
 
   it('initializes secret if not already initialized', async () => {
-    const { settings, manual, resource } = setup()
+    const { manual, resource } = setup()
 
     // when trying to get the secret, return undefined indicating it is not initialized
     mockGetSecretIfExists.mockReturnValue(Promise.resolve(undefined))
@@ -206,7 +206,7 @@ describe('manual-secret.ts', () => {
   })
 
   it('performs rotation when the appropriate', async () => {
-    const { settings, manual, resource } = setup()
+    const { manual, resource } = setup()
 
     // Set the current time to a day where the secret is not yet ready to rotate
     mockGetSecretIfExists.mockReturnValue(
