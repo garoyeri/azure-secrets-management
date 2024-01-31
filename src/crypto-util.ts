@@ -47,7 +47,6 @@ export function CreatePolicy(
           dnsNames: dnsNames as ArrayOneOrMore<string>
         }
       : undefined,
-    certificateTransparency: true,
     contentType: 'application/x-pem-file', // we'll usually do a PEM import here
     enhancedKeyUsage: [
       '1.3.6.1.5.5.7.3.1' // serverAuth

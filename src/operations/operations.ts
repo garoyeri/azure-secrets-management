@@ -2,6 +2,7 @@ import { OperationSettings } from '../operation-settings'
 import { Operation } from './abstract-operation'
 import { InitializeOperation } from './initialize-operation'
 import { NothingOperation } from './nothing-operation'
+import { RequestCsrOperation } from './request-csr-operation'
 import { RotateOperation } from './rotate-operation'
 
 const operations = new Map<string, Operation>()
@@ -10,7 +11,8 @@ export function Setup(settings: OperationSettings): void {
   const opsList = [
     new NothingOperation(settings),
     new InitializeOperation(settings),
-    new RotateOperation(settings)
+    new RotateOperation(settings),
+    new RequestCsrOperation(settings)
   ]
 
   for (const o of opsList) {

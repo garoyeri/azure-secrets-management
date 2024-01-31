@@ -1,6 +1,8 @@
+import * as core from '@actions/core'
 import { DefaultAzureCredential } from '@azure/identity'
 import { CertificateClient } from '@azure/keyvault-certificates'
 import { SecretClient } from '@azure/keyvault-secrets'
+import { RestError } from '@azure/core-http'
 
 import type {
   CertificateContentType,
@@ -37,18 +39,18 @@ export class KeyVaultClient {
   async GetCertificateIfExists(
     name: string
   ): Promise<KeyVaultCertificateWithPolicy | undefined> {
-    let foundSecrets = 0
-    for await (const found of this.client.listPropertiesOfCertificateVersions(
-      name
-    )) {
-      if (found.enabled) foundSecrets++
+    try {
+      const found = await this.client.getCertificate(name)
+      core.debug(`GetCertificateIfExists(${name}): ${JSON.stringify(found)}`)
+      return found
+    } catch (error) {
+      if (error instanceof RestError) {
+        if (error.statusCode === 404) {
+          core.debug(`GetCertificateIfExists(${name}): Not Found`)
+          return undefined
+        }
+      }
     }
-
-    if (foundSecrets > 0) {
-      return await this.client.getCertificate(name)
-    }
-
-    return undefined
   }
 
   /**
@@ -74,6 +76,8 @@ export class KeyVaultClient {
       }
     })
 
+    core.debug(`ImportCertificate(${name},...): ${JSON.stringify(result)}`)
+
     return result
   }
 
@@ -82,6 +86,8 @@ export class KeyVaultClient {
   ): Promise<CertificateOperationState> {
     const poller = await this.client.getCertificateOperation(name)
     const status = poller.getOperationState()
+
+    core.debug(`CheckCertificateRequest(${name}): ${JSON.stringify(status)}`)
 
     return status
   }
@@ -97,6 +103,8 @@ export class KeyVaultClient {
     await this.client.beginCreateCertificate(name, policy)
     const status = await this.CheckCertificateRequest(name)
 
+    core.debug(`CreateCsr(${name},${subject}): ${JSON.stringify(status)}`)
+
     return status
   }
 
@@ -109,6 +117,8 @@ export class KeyVaultClient {
       name,
       certificates.map(c => Buffer.from(c.toString()))
     )
+
+    core.debug(`MergeCertificate(${name},...): ${JSON.stringify(result)}`)
 
     return result
   }
@@ -148,14 +158,15 @@ export function GetCertificateClient(
   keyVault: string,
   credential: DefaultAzureCredential
 ): CertificateClient {
-  const cached = certificateClients.get(keyVault)
+  const name = keyVault.toLowerCase()
+  const cached = certificateClients.get(name)
   if (cached) return cached
 
   const newClient = new CertificateClient(
-    `https://${keyVault}.vault.azure.net`,
+    `https://${name}.vault.azure.net`,
     credential
   )
-  certificateClients.set(keyVault, newClient)
+  certificateClients.set(name, newClient)
 
   return newClient
 }
