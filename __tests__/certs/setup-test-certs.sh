@@ -11,4 +11,4 @@ cp -f domain.crt public-domain-cert.pem.txt
 
 # Public certificate with trust chain for garoyeri.dev
 cp -f rootCA.crt public-domain-cert-chain.pem.txt
-cat domain.crt >> public-domain-cert-chain.pem.txt
+cat domain.crt >>public-domain-cert-chain.pem.txt

@@ -72,13 +72,14 @@ export class ManualSecretRotator extends AbstractRotator {
     }
 
     const length = result.value?.length ?? 0
+    const contentType = result.properties.contentType ?? 'unspecified'
 
     return new InspectionResult(
       configurationId,
       this.type,
       result.properties.id,
       result.properties.enabled
-        ? `Secret OK, length: ${length}, contentType: ${result.properties.contentType ?? 'unspecified'}`
+        ? `Secret OK, length: ${length}, contentType: ${contentType}`
         : 'Secret disabled',
       '',
       result.properties.updatedOn,
