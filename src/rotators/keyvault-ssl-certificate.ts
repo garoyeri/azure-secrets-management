@@ -226,10 +226,10 @@ export class KeyVaultSslCertificateRotator implements Rotator {
 
     const status = await client.CheckCertificateRequest(secretName)
     let notes = ''
-    if (status.isStarted) {
-      notes = 'Certificate request started'
-    } else if (status.isCompleted && result.properties.enabled) {
+    if (status.isCompleted && result.properties.enabled) {
       notes = 'Certificate valid'
+    } else if (status.isStarted) {
+      notes = 'Certificate request started'
     } else if (status.isCompleted && !result.properties.enabled) {
       notes = 'Certificate expired or disabled'
     } else if (status.isCancelled) {
