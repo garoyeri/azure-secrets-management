@@ -17,12 +17,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Cleanup build folder
+        run: |
+          ls -la ./
+          rm -rf ./* || true
+          rm -rf ./.??* || true
+          ls -la ./
+
       - name: Checkout
         id: checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          clean: true
 
       - name: Setup Node.js
         id: setup-node
