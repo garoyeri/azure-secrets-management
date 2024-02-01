@@ -1,14 +1,17 @@
 import { ManagedResource } from '../src/configuration-file'
 import { ManualCertificateRotator } from '../src/rotators/manual-certificate'
-import { GetCertificateIfExists, ImportCertificate } from '../src/key-vault'
+import { KeyVaultClient } from '../src/key-vault'
 import { OperationSettings } from '../src/operation-settings'
 import { DefaultAzureCredential } from '@azure/identity'
 import { AddDays } from '../src/util'
 import type { KeyVaultCertificateWithPolicy } from '@azure/keyvault-certificates'
 
 jest.mock('../src/key-vault')
-const mockGetIfExists = jest.mocked(GetCertificateIfExists)
-const mockUpdate = jest.mocked(ImportCertificate)
+const mockGetIfExists = jest.spyOn(
+  KeyVaultClient.prototype,
+  'GetCertificateIfExists'
+)
+const mockUpdate = jest.spyOn(KeyVaultClient.prototype, 'ImportCertificate')
 
 jest.mock('@azure/identity')
 const mockDefaultAzureCredential = jest.mocked(DefaultAzureCredential)
@@ -77,7 +80,7 @@ describe('manual-certificate.ts', () => {
   })
 
   it('initializes secret if not already initialized', async () => {
-    const { settings, manual, resource } = setup()
+    const { manual, resource } = setup()
 
     // when trying to get the secret, return undefined indicating it is not initialized
     mockGetIfExists.mockReturnValue(Promise.resolve(undefined))
@@ -104,8 +107,6 @@ describe('manual-certificate.ts', () => {
     expect(rotationResult.name).toBe('myResourceConfig')
     expect(mockUpdate).toHaveBeenCalledTimes(1)
     expect(mockUpdate).toHaveBeenCalledWith(
-      resource.keyVault,
-      settings.credential,
       'myResourceConfig',
       Buffer.from('abcdefgh').valueOf(),
       undefined
@@ -151,8 +152,6 @@ describe('manual-certificate.ts', () => {
     expect(rotationResult.name).toBe('myResourceConfig')
     expect(mockUpdate).toHaveBeenCalledTimes(1)
     expect(mockUpdate).toHaveBeenCalledWith(
-      resource.keyVault,
-      settings.credential,
       'myResourceConfig',
       Buffer.from('abcdefgh').valueOf(),
       undefined
@@ -203,7 +202,7 @@ describe('manual-certificate.ts', () => {
   })
 
   it('performs rotation when the appropriate', async () => {
-    const { settings, manual, resource } = setup()
+    const { manual, resource } = setup()
 
     // Set the current time to a day where the secret is not yet ready to rotate
     mockGetIfExists.mockReturnValue(
@@ -239,8 +238,6 @@ describe('manual-certificate.ts', () => {
     expect(rotationResult.name).toBe('myResourceConfig')
     expect(mockUpdate).toHaveBeenCalledTimes(1)
     expect(mockUpdate).toHaveBeenCalledWith(
-      resource.keyVault,
-      settings.credential,
       'myResourceConfig',
       Buffer.from('abcdefgh').valueOf(),
       undefined

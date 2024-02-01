@@ -1,6 +1,6 @@
 import { ManagedResource } from '../src/configuration-file'
 import { ManualSecretRotator } from '../src/rotators/manual-secret'
-import { GetSecretIfExists, UpdateSecret } from '../src/key-vault'
+import { KeyVaultClient } from '../src/key-vault'
 import { OperationSettings } from '../src/operation-settings'
 import { DefaultAzureCredential } from '@azure/identity'
 import { AddDays } from '../src/util'
@@ -8,8 +8,11 @@ import { AddDays } from '../src/util'
 import type { KeyVaultSecret } from '@azure/keyvault-secrets'
 
 jest.mock('../src/key-vault')
-const mockGetSecretIfExists = jest.mocked(GetSecretIfExists)
-const mockUpdateSecret = jest.mocked(UpdateSecret)
+const mockGetSecretIfExists = jest.spyOn(
+  KeyVaultClient.prototype,
+  'GetSecretIfExists'
+)
+const mockUpdateSecret = jest.spyOn(KeyVaultClient.prototype, 'UpdateSecret')
 
 jest.mock('@azure/identity')
 const mockDefaultAzureCredential = jest.mocked(DefaultAzureCredential)
@@ -79,7 +82,7 @@ describe('manual-secret.ts', () => {
   })
 
   it('initializes secret if not already initialized', async () => {
-    const { settings, manual, resource } = setup()
+    const { manual, resource } = setup()
 
     // when trying to get the secret, return undefined indicating it is not initialized
     mockGetSecretIfExists.mockReturnValue(Promise.resolve(undefined))
@@ -106,8 +109,6 @@ describe('manual-secret.ts', () => {
     expect(rotationResult.name).toBe('myResourceConfig')
     expect(mockUpdateSecret).toHaveBeenCalledTimes(1)
     expect(mockUpdateSecret).toHaveBeenCalledWith(
-      resource.keyVault,
-      settings.credential,
       'myResourceConfig',
       'abcdefgh',
       AddDays(new Date(2023, 3, 1), 30),
@@ -154,8 +155,6 @@ describe('manual-secret.ts', () => {
     expect(rotationResult.name).toBe('myResourceConfig')
     expect(mockUpdateSecret).toHaveBeenCalledTimes(1)
     expect(mockUpdateSecret).toHaveBeenCalledWith(
-      resource.keyVault,
-      settings.credential,
       'myResourceConfig',
       'abcdefgh',
       AddDays(new Date(2023, 3, 1), 30),
@@ -207,7 +206,7 @@ describe('manual-secret.ts', () => {
   })
 
   it('performs rotation when the appropriate', async () => {
-    const { settings, manual, resource } = setup()
+    const { manual, resource } = setup()
 
     // Set the current time to a day where the secret is not yet ready to rotate
     mockGetSecretIfExists.mockReturnValue(
@@ -243,8 +242,6 @@ describe('manual-secret.ts', () => {
     expect(rotationResult.name).toBe('myResourceConfig')
     expect(mockUpdateSecret).toHaveBeenCalledTimes(1)
     expect(mockUpdateSecret).toHaveBeenCalledWith(
-      resource.keyVault,
-      settings.credential,
       'myResourceConfig',
       'abcdefgh',
       AddDays(new Date(2023, 1, 17), 30),

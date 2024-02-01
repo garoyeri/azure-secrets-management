@@ -22,12 +22,60 @@ const secretClients = new Map<string, SecretClient>()
 const certificateClients = new Map<string, CertificateClient>()
 
 export class KeyVaultClient {
-  private readonly client: CertificateClient
+  private readonly certClient: CertificateClient
+  private readonly secretClient: SecretClient
   private readonly settings: OperationSettings
 
   constructor(settings: OperationSettings, vaultName: string) {
     this.settings = settings
-    this.client = GetCertificateClient(vaultName, settings.credential)
+    this.certClient = GetCertificateClient(vaultName, settings.credential)
+    this.secretClient = GetSecretClient(vaultName, settings.credential)
+  }
+
+  /**
+   * Gets the value of a secret if it exists.
+   *
+   * @param name - Name of the secret to get
+   * @returns The secret if it exists, otherwise `undefined`
+   */
+  async GetSecretIfExists(name: string): Promise<KeyVaultSecret | undefined> {
+    try {
+      const found = await this.secretClient.getSecret(name)
+      core.debug(`GetSecretIfExists(${name}): ${JSON.stringify(found)}`)
+      return found
+    } catch (error) {
+      if (error instanceof RestError) {
+        if (error.statusCode === 404) {
+          core.debug(`GetCertificateIfExists(${name}): Not Found`)
+          return undefined
+        }
+      }
+
+      throw error
+    }
+  }
+
+  /**
+   * Update the value of a secret.
+   *
+   * @param name - Name of the secret to get
+   * @param value - Value of the secret to set
+   * @param expiration - Expiration of the secret
+   * @param contentType - Content type of the secret (default text/plain)
+   * @returns The updated secret details
+   */
+  async UpdateSecret(
+    name: string,
+    value: string,
+    expiration?: Date,
+    contentType?: string
+  ): Promise<KeyVaultSecret> {
+    const result = await this.secretClient.setSecret(name, value, {
+      contentType: contentType ?? 'text/plain',
+      expiresOn: expiration
+    })
+
+    return result
   }
 
   /**
@@ -40,7 +88,7 @@ export class KeyVaultClient {
     name: string
   ): Promise<KeyVaultCertificateWithPolicy | undefined> {
     try {
-      const found = await this.client.getCertificate(name)
+      const found = await this.certClient.getCertificate(name)
       core.debug(`GetCertificateIfExists(${name}): ${JSON.stringify(found)}`)
       return found
     } catch (error) {
@@ -50,6 +98,8 @@ export class KeyVaultClient {
           return undefined
         }
       }
+
+      throw error
     }
   }
 
@@ -68,7 +118,7 @@ export class KeyVaultClient {
     password = '',
     contentType: CertificateContentType = 'application/x-pkcs12'
   ): Promise<KeyVaultCertificateWithPolicy> {
-    const result = await this.client.importCertificate(name, value, {
+    const result = await this.certClient.importCertificate(name, value, {
       password,
       policy: {
         exportable: true,
@@ -84,7 +134,7 @@ export class KeyVaultClient {
   async CheckCertificateRequest(
     name: string
   ): Promise<CertificateOperationState> {
-    const poller = await this.client.getCertificateOperation(name)
+    const poller = await this.certClient.getCertificateOperation(name)
     const status = poller.getOperationState()
 
     core.debug(`CheckCertificateRequest(${name}): ${JSON.stringify(status)}`)
@@ -100,7 +150,7 @@ export class KeyVaultClient {
   ): Promise<CertificateOperationState> {
     const policy = CreatePolicy(subject, keyStrength, dnsNames)
 
-    await this.client.beginCreateCertificate(name, policy)
+    await this.certClient.beginCreateCertificate(name, policy)
     const status = await this.CheckCertificateRequest(name)
 
     core.debug(`CreateCsr(${name},${subject}): ${JSON.stringify(status)}`)
@@ -113,7 +163,7 @@ export class KeyVaultClient {
     certificateChainPem: string
   ): Promise<KeyVaultCertificateWithPolicy> {
     const certificates = ParsePemToCertificates(certificateChainPem)
-    const result = await this.client.mergeCertificate(
+    const result = await this.certClient.mergeCertificate(
       name,
       certificates.map(c => Buffer.from(c.toString()))
     )
@@ -135,14 +185,15 @@ export function GetSecretClient(
   keyVault: string,
   credential: DefaultAzureCredential
 ): SecretClient {
-  const cached = secretClients.get(keyVault)
+  const name = keyVault.toLowerCase()
+  const cached = secretClients.get(name)
   if (cached) return cached
 
   const newClient = new SecretClient(
-    `https://${keyVault}.vault.azure.net`,
+    `https://${name}.vault.azure.net`,
     credential
   )
-  secretClients.set(keyVault, newClient)
+  secretClients.set(name, newClient)
 
   return newClient
 }
@@ -169,118 +220,4 @@ export function GetCertificateClient(
   certificateClients.set(name, newClient)
 
   return newClient
-}
-
-/**
- * Gets the value of a secret if it exists.
- *
- * @param keyVault - Name of the key vault to use
- * @param credential - Azure credential to use
- * @param name - Name of the secret to get
- * @returns The secret if it exists, otherwise `undefined`
- */
-export async function GetSecretIfExists(
-  keyVault: string,
-  credential: DefaultAzureCredential,
-  name: string
-): Promise<KeyVaultSecret | undefined> {
-  const client = GetSecretClient(keyVault, credential)
-
-  let foundSecrets = 0
-  for await (const found of client.listPropertiesOfSecretVersions(name)) {
-    if (found.enabled) foundSecrets++
-  }
-
-  if (foundSecrets > 0) {
-    return await client.getSecret(name)
-  }
-
-  return undefined
-}
-
-/**
- * Update the value of a secret.
- *
- * @param keyVault - Name of the key vault to use
- * @param credential - Azure credential to use
- * @param name - Name of the secret to get
- * @param value - Value of the secret to set
- * @param expiration - Expiration of the secret
- * @param contentType - Content type of the secret (default text/plain)
- * @returns The updated secret details
- */
-export async function UpdateSecret(
-  keyVault: string,
-  credential: DefaultAzureCredential,
-  name: string,
-  value: string,
-  expiration?: Date,
-  contentType?: string
-): Promise<KeyVaultSecret> {
-  const client = GetSecretClient(keyVault, credential)
-
-  const result = await client.setSecret(name, value, {
-    contentType: contentType ?? 'text/plain',
-    expiresOn: expiration
-  })
-
-  return result
-}
-
-/**
- * Gets the value of a certificate if it exists.
- *
- * @param keyVault - Name of the key vault to use
- * @param credential - Azure credential to use
- * @param name - Name of the secret to get
- * @returns The secret if it exists, otherwise `undefined`
- */
-export async function GetCertificateIfExists(
-  keyVault: string,
-  credential: DefaultAzureCredential,
-  name: string
-): Promise<KeyVaultCertificateWithPolicy | undefined> {
-  const client = GetCertificateClient(keyVault, credential)
-
-  let foundSecrets = 0
-  for await (const found of client.listPropertiesOfCertificateVersions(name)) {
-    if (found.enabled) foundSecrets++
-  }
-
-  if (foundSecrets > 0) {
-    return await client.getCertificate(name)
-  }
-
-  return undefined
-}
-
-/**
- * Import certificate.
- *
- * @param keyVault - Name of the key vault to use
- * @param credential - Azure credential to use
- * @param name - Name of the certificate to update
- * @param value - Value of the certificate to set
- * @param password - Password of the source certificate if set (use empty string for no password)
- * @param contentType - Content type of the secret (default application/x-pkcs12)
- * @returns The updated secret details
- */
-export async function ImportCertificate(
-  keyVault: string,
-  credential: DefaultAzureCredential,
-  name: string,
-  value: Uint8Array,
-  password = ''
-): Promise<KeyVaultCertificateWithPolicy> {
-  const client = GetCertificateClient(keyVault, credential)
-
-  const result = await client.importCertificate(name, value, {
-    password,
-    policy: {
-      exportable: true,
-      contentType: 'application/x-pkcs12'
-    }
-  })
-
-  return result
 }
