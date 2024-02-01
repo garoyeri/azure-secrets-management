@@ -37,6 +37,8 @@ export class InspectOperation extends Operation {
       try {
         const result = await rotator.Inspect(r.id, r.resource)
         inspectionResults.push(result)
+
+        core.debug(`Inspected: ${r.id}: ${JSON.stringify(result.toJSON())}`)
       } catch (error) {
         if (error instanceof Error) {
           core.error(
