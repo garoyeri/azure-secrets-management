@@ -78,8 +78,9 @@ export class InspectOperation extends Operation {
       )
     ]
 
-    core.summary.addTable(summaryRows)
-
-    core.summary.write()
+    await core.summary
+      .addHeading('Secrets Inspection')
+      .addTable(summaryRows)
+      .write()
   }
 }
