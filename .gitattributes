@@ -2,4 +2,4 @@
 
 dist/** -diff linguist-generated=true
 
-*.sh 755
+**/*.sh 755
