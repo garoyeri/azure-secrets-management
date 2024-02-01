@@ -79,5 +79,7 @@ export class InspectOperation extends Operation {
     ]
 
     core.summary.addTable(summaryRows)
+
+    core.summary.write()
   }
 }
