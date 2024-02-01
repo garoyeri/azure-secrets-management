@@ -239,7 +239,7 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     return new InspectionResult(
       configurationId,
       this.type,
-      result.id ?? '',
+      result.properties.id ?? '',
       notes,
       '',
       result.properties.updatedOn,
