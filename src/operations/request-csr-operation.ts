@@ -24,12 +24,6 @@ export class RequestCsrOperation extends ResourceOperation {
 
     await this.UploadCsrArtifact(result)
 
-    if (result.rotated) {
-      core.setOutput('rotated-resources', r.id)
-    } else {
-      core.setOutput('rotated-resources', '')
-    }
-
     return result
   }
 
