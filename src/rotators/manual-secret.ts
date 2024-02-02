@@ -23,9 +23,14 @@ export class ManualSecretRotator extends AbstractRotator {
       : Buffer.from(this.settings.secretValue1)
 
     if (this.settings.whatIf) {
-      return new RotationResult(configurationId, true, 'what-if', {
-        expiration: newExpiration
-      })
+      return new RotationResult(
+        configurationId,
+        true,
+        'WHATIF: Updated secret',
+        {
+          expiration: newExpiration
+        }
+      )
     }
 
     const result = await client.UpdateSecret(

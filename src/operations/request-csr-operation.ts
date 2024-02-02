@@ -1,5 +1,4 @@
 import * as fs from 'fs'
-import * as core from '@actions/core'
 import { OperationSettings } from '../operation-settings'
 import { IdentifiedManagedResource } from '../configuration-file'
 import { ResourceOperation } from './abstract-resource-operation'

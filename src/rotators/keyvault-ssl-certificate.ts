@@ -114,6 +114,10 @@ export class KeyVaultSslCertificateRotator implements Rotator {
       )
     }
 
+    if (this.settings.whatIf) {
+      return new RotationResult(configurationId, true, 'WHATIF: Create CSR')
+    }
+
     const result = await client.CreateCsr(
       secretName,
       scrubbedResource.certificate.subject,
@@ -189,6 +193,14 @@ export class KeyVaultSslCertificateRotator implements Rotator {
     const certificate = resource.certificate?.issuedCertificatePath
       ? fs.readFileSync(resource.certificate?.issuedCertificatePath, 'utf-8')
       : ''
+
+    if (this.settings.whatIf) {
+      return new RotationResult(
+        configurationId,
+        true,
+        'WHATIF: Merged certificate successfully'
+      )
+    }
 
     // CSR is started, and it's time to rotate (or we're forcing) so let's merge
     const result = await client.MergeCertificate(

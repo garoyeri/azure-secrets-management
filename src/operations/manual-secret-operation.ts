@@ -30,10 +30,7 @@ export class ManualSecretOperation extends Operation {
       return
     }
 
-    const result = await manual.Rotate(
-      targetResources[0],
-      manual.ApplyDefaults(resource)
-    )
+    const result = await manual.Rotate(targetResources[0], resource)
 
     if (result.rotated) {
       core.info(`Resource '${targetResources[0]}' was rotated`)

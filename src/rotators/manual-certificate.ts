@@ -20,7 +20,11 @@ export class ManualCertificateRotator extends AbstractRotator {
       : Buffer.from(this.settings.secretValue1)
 
     if (this.settings.whatIf) {
-      return new RotationResult(configurationId, true, 'what-if')
+      return new RotationResult(
+        configurationId,
+        true,
+        'WHATIF: Imported certificate'
+      )
     }
 
     const result = await client.ImportCertificate(
