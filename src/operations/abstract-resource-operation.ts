@@ -19,6 +19,8 @@ export abstract class ResourceOperation extends Operation {
       targetResources
     )
 
+    const rotatedResources: string[] = []
+
     for (const r of targetResourceDetails) {
       const rotator = Resolve(r.resource.type ?? '')
       if (!rotator) {
@@ -37,6 +39,7 @@ export abstract class ResourceOperation extends Operation {
         // validate
         if (result.rotated) {
           core.info(`Resource '${r.id}' was processed`)
+          rotatedResources.push(r.id)
         } else {
           core.warning(`Resource '${r.id}' was not processed: ${result.notes}`)
         }
@@ -48,6 +51,8 @@ export abstract class ResourceOperation extends Operation {
         }
       }
     }
+
+    core.setOutput('rotated-resources', rotatedResources.join(','))
   }
 
   protected abstract PerformSingleRun(

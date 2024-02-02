@@ -1,59 +1,59 @@
-name: 'Azure Secrets Management'
-description: 'Azure Secrets Management'
-author: '@garoyeri'
+name: "Azure Secrets Management"
+description: "Azure Secrets Management"
+author: "@garoyeri"
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: 'heart'
-  color: 'red'
+  icon: "heart"
+  color: "red"
 
 # Define your inputs here.
 inputs:
   configuration:
-    description: 'Path to the configuration file for secrets management'
+    description: "Path to the configuration file for secrets management"
     required: true
   operation:
     description: |
       Operation to perform: initialize, generate-configuration, rotate
       (default), manual-certificate, manual-secret, request-csr
     required: false
-    default: 'rotate'
+    default: "rotate"
   force:
     description: |
       Whether or not to force the requested operation (default `false`)
     required: false
-    default: 'false'
+    default: "false"
   what-if:
     description: |
       Whether or not to just print what we would do instead of doing it
       (default `false`)
     required: false
-    default: 'false'
+    default: "false"
   resources:
     description: |
       Comma-separated list of the resources in the configuration file to
       limit this operation to. Use `*` to indicate all resources (the
       default). Use `''''`` to indicate no resources.
     required: false
-    default: '*'
+    default: "*"
   secret-value-1:
     description: |
       When using manual operations, the secret value to use as a new secret.
     required: false
-    default: ''
+    default: ""
   secret-value-2:
     description: |
       When using manual operations, the second secret value to use: usually
       the PFX password for `manual-certificate`.
     required: false
-    default: ''
+    default: ""
 
 # Define your outputs here.
 outputs:
   rotated-resources:
     description: |
-      The list of resources that were rotated (or would have been rotated in
-      the case of `what-if: true`) in the operation
+      The comma-separated list of resources that were rotated (or would have
+      been rotated in the case of `what-if: true`) in the operation
 
 runs:
   using: node20

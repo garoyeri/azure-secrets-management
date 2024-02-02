@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import * as core from '@actions/core'
 import { OperationSettings } from '../operation-settings'
 import { IdentifiedManagedResource } from '../configuration-file'
 import { ResourceOperation } from './abstract-resource-operation'
@@ -22,6 +23,12 @@ export class RequestCsrOperation extends ResourceOperation {
     const result = await rotator.Initialize(r.id, r.resource)
 
     await this.UploadCsrArtifact(result)
+
+    if (result.rotated) {
+      core.setOutput('rotated-resources', r.id)
+    } else {
+      core.setOutput('rotated-resources', '')
+    }
 
     return result
   }
