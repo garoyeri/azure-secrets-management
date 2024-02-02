@@ -8,6 +8,7 @@ import { Operation } from './abstract-operation'
 import { Resolve } from '../rotators/rotators'
 import { Rotator } from '../rotators/abstract-rotator'
 import { RotationResult } from '../rotators/shared'
+import { SetRotatedResourceOutput } from '../github-action-util'
 
 export abstract class ResourceOperation extends Operation {
   async Run(
@@ -52,7 +53,7 @@ export abstract class ResourceOperation extends Operation {
       }
     }
 
-    core.setOutput('rotated-resources', rotatedResources.join(','))
+    SetRotatedResourceOutput(rotatedResources)
   }
 
   protected abstract PerformSingleRun(

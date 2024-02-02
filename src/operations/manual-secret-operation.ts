@@ -3,6 +3,7 @@ import { ConfigurationFile } from '../configuration-file'
 import { OperationSettings } from '../operation-settings'
 import { Operation } from './abstract-operation'
 import { ManualSecretRotator } from '../rotators/manual-secret'
+import { SetRotatedResourceOutput } from '../github-action-util'
 
 export class ManualSecretOperation extends Operation {
   constructor(settings: OperationSettings) {
@@ -36,6 +37,7 @@ export class ManualSecretOperation extends Operation {
 
     if (result.rotated) {
       core.info(`Resource '${targetResources[0]}' was rotated`)
+      SetRotatedResourceOutput([targetResources[0]])
     } else {
       core.warning(
         `Resource '${targetResources[0]}' was NOT rotated: ${result.notes}`
