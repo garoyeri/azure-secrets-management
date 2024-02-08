@@ -27,7 +27,7 @@ afterEach(() => {
   jest.restoreAllMocks()
 })
 
-function setup(): {
+function setup(overrideSettings: Partial<OperationSettings> = {}): {
   settings: OperationSettings
   manual: ManualSecretRotator
   resource: Partial<ManagedResource>
@@ -38,7 +38,8 @@ function setup(): {
     operation: '',
     resourcesFilter: '*',
     secretValue1: 'abcdefgh',
-    whatIf: false
+    whatIf: false,
+    ...overrideSettings
   } as OperationSettings
 
   return {
@@ -114,6 +115,38 @@ describe('manual-secret.ts', () => {
       AddDays(new Date(2023, 3, 1), 30),
       'text/plain'
     )
+  })
+
+  it('does not actually initialize secret with what-if setting', async () => {
+    const { manual, resource } = setup({
+      whatIf: true
+    })
+
+    // when trying to get the secret, return undefined indicating it is not initialized
+    mockGetSecretIfExists.mockReturnValue(Promise.resolve(undefined))
+
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 3, 1).valueOf())
+    mockUpdateSecret.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'text/plain',
+          createdOn: new Date(2023, 3, 1),
+          expiresOn: AddDays(new Date(2023, 3, 1), 30)
+        },
+        value: 'abcdefgh'
+      } as KeyVaultSecret)
+    )
+
+    const rotationResult = await manual.Initialize(
+      'myResourceConfig',
+      manual.ApplyDefaults(resource)
+    )
+
+    expect(rotationResult.rotated).toBeTruthy()
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(mockUpdateSecret).toHaveBeenCalledTimes(0)
+    // at the end, updateSecret should not be called
   })
 
   it('initializes secret if forced', async () => {
