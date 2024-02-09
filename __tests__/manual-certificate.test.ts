@@ -26,7 +26,7 @@ afterEach(() => {
   jest.restoreAllMocks()
 })
 
-function setup(): {
+function setup(overrideSettings: Partial<OperationSettings> = {}): {
   settings: OperationSettings
   manual: ManualCertificateRotator
   resource: Partial<ManagedResource>
@@ -37,7 +37,8 @@ function setup(): {
     operation: '',
     resourcesFilter: '*',
     secretValue1: Buffer.from('abcdefgh').toString('base64'),
-    whatIf: false
+    whatIf: false,
+    ...overrideSettings
   } as OperationSettings
 
   return {
@@ -113,6 +114,37 @@ describe('manual-certificate.ts', () => {
     )
   })
 
+  it('does not initialize secret if not already initialized and what-if', async () => {
+    const { manual, resource } = setup({
+      whatIf: true
+    })
+
+    // when trying to get the secret, return undefined indicating it is not initialized
+    mockGetIfExists.mockReturnValue(Promise.resolve(undefined))
+
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 3, 1).valueOf())
+    mockUpdate.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'application/x-pkcs12',
+          createdOn: new Date(2023, 3, 1),
+          expiresOn: AddDays(new Date(2023, 3, 1), 365)
+        },
+        value: 'abcdefgh'
+      } as KeyVaultCertificateWithPolicy)
+    )
+
+    const rotationResult = await manual.Initialize(
+      'myResourceConfig',
+      manual.ApplyDefaults(resource)
+    )
+
+    expect(rotationResult.rotated).toBeTruthy()
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(mockUpdate).toHaveBeenCalledTimes(0)
+  })
+
   it('initializes secret if forced', async () => {
     const { settings, manual, resource } = setup()
     settings.force = true
@@ -158,6 +190,48 @@ describe('manual-certificate.ts', () => {
     )
   })
 
+  it('does not initialize secret if forced but using what-if', async () => {
+    const { manual, resource } = setup({
+      force: true,
+      whatIf: true
+    })
+
+    // when trying to get the secret, return something indicating it was already initialized
+    mockGetIfExists.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'application/x-pkcs12',
+          createdOn: new Date(2023, 1, 1),
+          expiresOn: AddDays(new Date(2023, 1, 1), 365)
+        },
+        value: '123456'
+      } as KeyVaultCertificateWithPolicy)
+    )
+
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 3, 1).valueOf())
+    mockUpdate.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'application/x-pkcs12',
+          createdOn: new Date(2023, 3, 1),
+          expiresOn: AddDays(new Date(2023, 3, 1), 365)
+        },
+        value: 'abcdefgh'
+      } as KeyVaultCertificateWithPolicy)
+    )
+
+    const rotationResult = await manual.Initialize(
+      'myResourceConfig',
+      manual.ApplyDefaults(resource)
+    )
+
+    expect(rotationResult.rotated).toBeTruthy()
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(mockUpdate).toHaveBeenCalledTimes(0)
+  })
+
   it('does not rotate when secret is uninitialized', async () => {
     const { manual, resource } = setup()
 
@@ -201,7 +275,7 @@ describe('manual-certificate.ts', () => {
     expect(rotationResult.notes).toBe('Not time to rotate yet')
   })
 
-  it('performs rotation when the appropriate', async () => {
+  it('performs rotation when appropriate', async () => {
     const { manual, resource } = setup()
 
     // Set the current time to a day where the secret is not yet ready to rotate
@@ -242,5 +316,45 @@ describe('manual-certificate.ts', () => {
       Buffer.from('abcdefgh').valueOf(),
       undefined
     )
+  })
+
+  it('does not perform rotation when appropriate but using what-if', async () => {
+    const { manual, resource } = setup({
+      whatIf: true
+    })
+
+    // Set the current time to a day where the secret is not yet ready to rotate
+    mockGetIfExists.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'application/x-pkcs12',
+          createdOn: new Date(2023, 1, 1),
+          expiresOn: AddDays(new Date(2023, 1, 1), 365)
+        },
+        value: '123456'
+      } as KeyVaultCertificateWithPolicy)
+    )
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2024, 0, 15).valueOf())
+    mockUpdate.mockReturnValue(
+      Promise.resolve({
+        name: 'myResourceConfig',
+        properties: {
+          contentType: 'application/x-pkcs12',
+          createdOn: new Date(2024, 1, 1),
+          expiresOn: AddDays(new Date(2024, 1, 1), 365)
+        },
+        value: 'abcdefgh'
+      } as KeyVaultCertificateWithPolicy)
+    )
+
+    const rotationResult = await manual.Rotate(
+      'myResourceConfig',
+      manual.ApplyDefaults(resource)
+    )
+
+    expect(rotationResult.rotated).toBeTruthy()
+    expect(rotationResult.name).toBe('myResourceConfig')
+    expect(mockUpdate).toHaveBeenCalledTimes(0)
   })
 })

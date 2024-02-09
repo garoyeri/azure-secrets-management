@@ -8,6 +8,7 @@ import { Operation } from './abstract-operation'
 import { Resolve } from '../rotators/rotators'
 import { Rotator } from '../rotators/abstract-rotator'
 import { RotationResult } from '../rotators/shared'
+import { SetRotatedResourceOutput } from '../github-action-util'
 
 export abstract class ResourceOperation extends Operation {
   async Run(
@@ -18,6 +19,8 @@ export abstract class ResourceOperation extends Operation {
       configuration,
       targetResources
     )
+
+    const rotatedResources: string[] = []
 
     for (const r of targetResourceDetails) {
       const rotator = Resolve(r.resource.type ?? '')
@@ -37,6 +40,7 @@ export abstract class ResourceOperation extends Operation {
         // validate
         if (result.rotated) {
           core.info(`Resource '${r.id}' was processed`)
+          rotatedResources.push(r.id)
         } else {
           core.warning(`Resource '${r.id}' was not processed: ${result.notes}`)
         }
@@ -48,6 +52,8 @@ export abstract class ResourceOperation extends Operation {
         }
       }
     }
+
+    SetRotatedResourceOutput(rotatedResources)
   }
 
   protected abstract PerformSingleRun(

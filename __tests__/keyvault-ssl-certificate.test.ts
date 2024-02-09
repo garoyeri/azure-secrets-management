@@ -25,17 +25,18 @@ afterEach(() => {
   jest.restoreAllMocks()
 })
 
-function setup(force = false): {
+function setup(overrideSettings: Partial<OperationSettings> = {}): {
   settings: OperationSettings
   rotator: KeyVaultSslCertificateRotator
   resource: Partial<ManagedResource>
 } {
   const settings = {
     credential: new DefaultAzureCredential(),
-    force,
+    force: false,
     operation: '',
     resourcesFilter: '*',
-    whatIf: false
+    whatIf: false,
+    ...overrideSettings
   } as OperationSettings
 
   return {
@@ -143,6 +144,60 @@ describe('keyvault-ssl-certificate.ts', () => {
     expect(result.context).toStrictEqual({
       csr: ConvertCsrToText(new Uint8Array([1, 2, 3, 4]))
     })
+  })
+
+  it('does not request a CSR when conditions are correct but using what-if', async () => {
+    // today is January 2, 2023, certificate expires February 2, 2023
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 0, 2).valueOf())
+    const getCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'GetCertificateIfExists')
+      .mockImplementation(async name => {
+        return Promise.resolve<KeyVaultCertificateWithPolicy>({
+          name: configurationId,
+          secretId: name,
+          properties: {
+            expiresOn: new Date(2023, 1, 2)
+          }
+        })
+      })
+
+    const checkCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CheckCertificateRequest')
+      .mockImplementation(async name => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isStarted: false,
+          isCancelled: false,
+          isCompleted: true
+        })
+      })
+
+    const createCsrMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CreateCsr')
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .mockImplementation(async (name, _subject, _keyStrength) => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isCompleted: false,
+          isStarted: true,
+          isCancelled: false,
+          certificateOperation: {
+            csr: new Uint8Array([1, 2, 3, 4])
+          }
+        })
+      })
+
+    const { rotator, resource } = setup({
+      whatIf: true
+    })
+
+    const result = await rotator.Initialize(configurationId, resource)
+
+    expect(getCertificateMock).toHaveBeenCalledTimes(1)
+    expect(checkCertificateMock).toHaveBeenCalledTimes(1)
+    expect(createCsrMock).toHaveBeenCalledTimes(0)
+    expect(result.rotated).toBeTruthy()
+    expect(result.context).toStrictEqual({})
   })
 
   it('can get a pending CSR details', async () => {
@@ -623,5 +678,76 @@ describe('keyvault-ssl-certificate.ts', () => {
     expect(result.context).toStrictEqual({
       thumbprint: 'ABCDEFG'
     })
+  })
+
+  it('does not merge certificate when time to rotate but using what-if', async () => {
+    // today is January 2, 2023, certificate expires February 2, 2023
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2023, 0, 2).valueOf())
+    const getCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'GetCertificateIfExists')
+      .mockImplementation(async name => {
+        return Promise.resolve<KeyVaultCertificateWithPolicy>({
+          name: configurationId,
+          secretId: name,
+          properties: {
+            expiresOn: new Date(2023, 1, 2)
+          }
+        })
+      })
+
+    const checkCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CheckCertificateRequest')
+      .mockImplementation(async name => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isStarted: true,
+          isCancelled: false,
+          isCompleted: false,
+          certificateOperation: {
+            csr: new Uint8Array([1, 2, 3, 4])
+          }
+        })
+      })
+
+    const createCsrMock = jest
+      .spyOn(KeyVaultClient.prototype, 'CreateCsr')
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .mockImplementation(async (name, _subject, _keyStrength) => {
+        return Promise.resolve<CertificateOperationState>({
+          certificateName: name,
+          isCompleted: false,
+          isStarted: true,
+          isCancelled: false,
+          certificateOperation: {
+            csr: new Uint8Array([1, 2, 3, 4])
+          }
+        })
+      })
+
+    const mergeCertificateMock = jest
+      .spyOn(KeyVaultClient.prototype, 'MergeCertificate')
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .mockImplementation(async (name, _chain) => {
+        return Promise.resolve<KeyVaultCertificateWithPolicy>({
+          name,
+          properties: {
+            expiresOn: new Date(2024, 0, 2),
+            x509Thumbprint: Buffer.from('ABCDEFG')
+          }
+        })
+      })
+
+    const { rotator, resource } = setup({
+      whatIf: true
+    })
+
+    const result = await rotator.Rotate(configurationId, resource)
+
+    expect(getCertificateMock).toHaveBeenCalledTimes(1)
+    expect(checkCertificateMock).toHaveBeenCalledTimes(1)
+    expect(createCsrMock).toHaveBeenCalledTimes(0)
+    expect(mergeCertificateMock).toHaveBeenCalledTimes(0)
+    expect(result.rotated).toBeTruthy()
+    expect(result.context).toStrictEqual({})
   })
 })
